@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Platform</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Phần đầu trang -->
+    <header class="header">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='images/logo-dolphin.png') }}" alt="Logo" style="height: 60px; border-radius: 50%; background: #fff;">
+            <h1>Trí Tuệ Số</h1>
+        </div>
+
+        <nav class="main-nav">
+            <ul>
+                <li><a href="#home" class="nav-link active" data-tab="home"><i class="fas fa-home"></i> Trang Chủ</a></li>
+                <li><a href="#profile" class="nav-link" data-tab="profile"><i class="fas fa-user"></i> Hồ Sơ</a></li>
+                <li><a href="#planning" class="nav-link" data-tab="planning"><i class="fas fa-calendar-alt"></i> Lập Kế Hoạch Học</a></li>
+                <li><a href="#tasks" class="nav-link" data-tab="tasks"><i class="fas fa-tasks"></i> Nhiệm Vụ</a></li>
+                <li><a href="#settings" class="nav-link" data-tab="settings"><i class="fas fa-cog"></i> Cài Đặt</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Phần thanh bên -->
+        <aside class="sidebar">
+            <div class="progress-section">
+                <h2>Tiến Độ Của Bạn</h2>
+                <div class="progress-item">
+                    <h3>Toán Học</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 75%"></div>
+                    </div>
+                    <span>75%</span>
+                </div>
+                <div class="progress-item">
+                    <h3>Vật Lý</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 45%"></div>
+                    </div>
+                    <span>45%</span>
+                </div>
+                <div class="progress-item">
+                    <h3>Hóa Học</h3>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: 0%"></div>
+                    </div>
+                    <span>0%</span>
+                </div>
+            </div>
+
+            <div class="suggested-tasks">
+                <h2>Nhiệm Vụ Gợi Ý</h2>
+                <ul>
+                    <!-- JS sẽ tự động render các nhiệm vụ gợi ý ở đây -->
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Phần nội dung chính -->
+        <main class="main-content">
+            <!-- Tab Trang Chủ -->
+            <div class="tab-content active" id="home">
+                <div class="welcome-section">
+                    <h2>Chào Mừng Bạn Trở Lại, Học Sinh!</h2>
+                    <p>Tiếp tục hành trình học tập của bạn</p>
+                </div>
+
+                <div class="content-section">
+                    <div class="card">
+                        <h3>Hoạt Động Gần Đây</h3>
+                        <ul class="activity-list">
+                            <li>
+                                <i class="fas fa-check"></i>
+                                Hoàn thành bài kiểm tra Toán
+                            </li>
+                            <li>
+                                <i class="fas fa-book"></i>
+                                Đọc chương 3 môn Vật Lý
+                            </li>
+                            <li>
+                                <i class="fas fa-pencil-alt"></i>
+                                Nộp bài tập
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Hồ Sơ -->
+            <div class="tab-content" id="profile">
+                <div class="welcome-section">
+                    <h2>Hồ Sơ Của Bạn</h2>
+                </div>
+                <div class="content-section">
+                    <div class="card">
+                        <h3>Thông Tin Cá Nhân</h3>
+                        <div class="profile-info">
+                            <img src="{{ url_for('static', filename='default-avatar.svg') }}" alt="Ảnh Đại Diện" class="profile-picture" id="profileAvatar">
+                            <div class="profile-details">
+                                <p><strong>Họ và Tên:</strong> <span id="profileFullName"></span></p>
+                                <p><strong>Email:</strong> <span id="profileEmail"></span></p>
+                                <p><strong>Mã Sinh Viên:</strong> <span id="profileStudentId"></span></p>
+                                <p><strong>Ngày Tham Gia:</strong> <span id="profileJoinDate"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Thống Kê Học Tập</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <h4>Số Khóa Học Hoàn Thành</h4>
+                                <p class="stat-number">12</p>
+                            </div>
+                            <div class="stat-item">
+                                <h4>Điểm Trung Bình</h4>
+                                <p class="stat-number">85%</p>
+                            </div>
+                            <div class="stat-item">
+                                <h4>Số Giờ Học</h4>
+                                <p class="stat-number">156</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Lập Kế Hoạch Học -->
+            <div class="tab-content" id="planning">
+                <div class="welcome-section">
+                    <h2>Tạo Kế Hoạch Học Tập Thông Minh</h2>
+                    <p>Điền vào biểu mẫu dưới đây để AI tạo kế hoạch học tập cá nhân hóa cho bạn</p>
+                </div>
+                <div class="content-section">
+                    <div class="card planning-form-card">
+                        <form id="study-plan-form" class="planning-form">
+                            <div class="form-section">
+                                <h3>Thông Tin Môn Học</h3>
+                                <div class="form-group">
+                                    <label for="subject">Môn Học</label>
+                                    <select id="subject" required>
+                                        <option value="">Chọn Môn Học</option>
+                                        <option value="math">Toán Học</option>
+                                        <option value="physics">Vật Lý</option>
+                                        <option value="chemistry">Hóa Học</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="grade">Cấp Học</label>
+                                    <select id="grade" required>
+                                        <option value="">Chọn Cấp Học</option>
+                                        <option value="thcs">THCS</option>
+                                        <option value="thpt">THPT</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h3>Đánh Giá Năng Lực</h3>
+                                <div class="form-group">
+                                    <label for="current-score">Điểm Số Hiện Tại (thang điểm 10)</label>
+                                    <input type="number" id="current-score" min="0" max="10" step="0.1" required placeholder="Ví dụ: 6.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="target-score">Điểm Số Mục Tiêu (thang điểm 10)</label>
+                                    <input type="number" id="target-score" min="0" max="10" step="0.1" required placeholder="Ví dụ: 8.5">
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h3>Thời Gian Học Tập</h3>
+                                <div class="form-group">
+                                    <label for="duration-weeks">Thời Gian Học (tuần)</label>
+                                    <input type="number" id="duration-weeks" min="1" max="52" required placeholder="Ví dụ: 8">
+                                </div>
+                                <div class="form-group">
+                                    <label for="daily-study-hours">Số Giờ Học Mỗi Ngày</label>
+                                    <input type="number" id="daily-study-hours" min="1" max="8" required placeholder="Ví dụ: 2">
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h3>Phong Cách Học Tập</h3>
+                                <div class="form-group">
+                                    <label>Chọn Phong Cách Học Tập</label>
+                                    <div class="radio-group">
+                                        <label class="radio-label">
+                                            <input type="radio" name="learning-style" value="theory" required> Thiên Về Lý Thuyết
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="learning-style" value="practical"> Thiên Về Thực Hành
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="learning-style" value="combined"> Kết Hợp Cả Hai
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">Tạo Kế Hoạch Học Tập</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Kết quả kế hoạch học tập -->
+                <div id="study-plan-result" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="result-header">
+                            <h3>Kế Hoạch Học Tập Được Đề Xuất</h3>
+                            <button class="btn btn-secondary" onclick="document.getElementById('study-plan-result').style.display='none'">
+                                <i class="fas fa-times"></i> Đóng
+                            </button>
+                        </div>
+                        <div id="plan-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Nhiệm Vụ -->
+            <div class="tab-content" id="tasks">
+                <div class="welcome-section">
+                    <h2>Các Nhiệm Vụ Của Bạn</h2>
+                </div>
+                <div class="content-section">
+                    <!-- ĐÃ XÓA tiêu đề lớn căn giữa Danh Sách Kế Hoạch Học Tập Đã Lưu ở đây -->
+                    <!-- Phần renderSavedPlan sẽ tự động hiển thị danh sách kế hoạch ở đây -->
+                </div>
+            </div>
+
+            <!-- Tab Cài Đặt -->
+            <div class="tab-content" id="settings">
+                <div class="welcome-section">
+                    <h2>Cài Đặt</h2>
+                </div>
+                <div class="content-section">
+                    <!-- Profile Settings Section -->
+                    <div class="card">
+                        <h3>Cài Đặt Hồ Sơ</h3>
+                        <form id="profileForm" class="settings-form">
+                            <div class="profile-image-section">
+                                <div class="profile-image-container">
+                                    <img id="profileImage" src="{{ url_for('static', filename='default-avatar.svg') }}" alt="Ảnh đại diện">
+                                    <div class="image-overlay">
+                                        <i class="fas fa-camera"></i>
+                                    </div>
+                                </div>
+                                <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                                <button type="button" class="btn-secondary" onclick="document.getElementById('imageUpload').click()">
+                                    Thay đổi ảnh đại diện
+                                </button>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="studentId">Mã học sinh</label>
+                                <input type="text" id="studentId" value="HS0001" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="fullName">Họ và tên</label>
+                                <input type="text" id="fullName" placeholder="Nhập họ và tên" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" id="email" placeholder="Nhập email" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="joinDate">Ngày tham gia</label>
+                                <input type="date" id="joinDate" readonly>
+                            </div>
+
+                            <button type="submit" class="btn">Lưu thay đổi</button>
+                        </form>
+                    </div>
+
+                    <!-- Password Settings Section -->
+                    <div class="card">
+                        <h3>Thay đổi mật khẩu</h3>
+                        <form id="passwordForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="currentPassword">Mật khẩu hiện tại</label>
+                                <div class="password-input">
+                                    <input type="password" id="currentPassword" required>
+                                    <i class="fas fa-eye toggle-password"></i>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="newPassword">Mật khẩu mới</label>
+                                <div class="password-input">
+                                    <input type="password" id="newPassword" required>
+                                    <i class="fas fa-eye toggle-password"></i>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="confirmPassword">Xác nhận mật khẩu mới</label>
+                                <div class="password-input">
+                                    <input type="password" id="confirmPassword" required>
+                                    <i class="fas fa-eye toggle-password"></i>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn">Cập nhật mật khẩu</button>
+                        </form>
+                    </div>
+
+                    <!-- Notification Settings Section -->
+                    <div class="card">
+                        <h3>Cài Đặt Thông Báo</h3>
+                        <form id="notificationForm" class="settings-form">
+                            <div class="notification-option">
+                                <label class="switch">
+                                    <input type="checkbox" id="emailNotifications" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span>Thông báo qua email</span>
+                            </div>
+
+                            <div class="notification-option">
+                                <label class="switch">
+                                    <input type="checkbox" id="assignmentNotifications" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span>Thông báo bài tập mới</span>
+                            </div>
+
+                            <div class="notification-option">
+                                <label class="switch">
+                                    <input type="checkbox" id="gradeNotifications" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span>Thông báo điểm số</span>
+                            </div>
+
+                            <div class="notification-option">
+                                <label class="switch">
+                                    <input type="checkbox" id="announcementNotifications" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <span>Thông báo chung</span>
+                            </div>
+
+                            <button type="submit" class="btn">Lưu cài đặt thông báo</button>
+                        </form>
+                    </div>
+
+                    <!-- Logout Section -->
+                    <div class="card">
+                        <h3>Đăng Xuất</h3>
+                        <div class="logout-section">
+                            <p>Bạn có muốn đăng xuất khỏi tài khoản?</p>
+                            <button id="logoutBtn" class="btn btn-danger">Đăng Xuất</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Thông báo thành công -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Thành công!</h2>
+            <p id="successMessage"></p>
+            <button id="modalOkBtn" class="btn">OK</button>
+        </div>
+    </div>
+
+    <!-- Modal Thông báo lỗi -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Lỗi!</h2>
+            <p id="errorMessage"></p>
+            <button id="modalErrorBtn" class="btn">OK</button>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận đăng xuất -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Xác nhận</h2>
+            <p></p>
+            <div class="modal-buttons">
+                <button id="confirmYesBtn" class="btn btn-danger">Đăng xuất</button>
+                <button id="confirmNoBtn" class="btn">Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Đánh Giá -->
+    <div id="evaluationModal" class="modal">
+        <div class="modal-content evaluation-modal">
+            <span class="close">&times;</span>
+            <h2>Đánh Giá Kiến Thức</h2>
+            <div id="evaluationContent">
+                <div class="evaluation-info">
+                    <p>Ngày học: <span id="evaluationDay"></span></p>
+                    <p>Môn học: <span id="evaluationSubject"></span></p>
+                </div>
+                <div id="quizContainer">
+                    <!-- Câu hỏi sẽ được thêm vào đây -->
+                </div>
+                <div class="evaluation-actions">
+                    <button id="submitEvaluation" class="btn btn-primary">Nộp Bài</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal nhập tên kế hoạch -->
+    <div id="planNameModal" class="modal">
+      <div class="modal-content" style="max-width:400px;">
+        <span class="close" id="closePlanNameModal">&times;</span>
+        <h2>Nhập tên cho kế hoạch</h2>
+        <input type="text" id="planNameInput" class="form-control" style="width:100%;padding:10px;margin:20px 0;" placeholder="Nhập tên kế hoạch...">
+        <div style="display:flex;gap:1rem;justify-content:flex-end;">
+          <button id="cancelPlanNameBtn" class="btn btn-secondary">Hủy</button>
+          <button id="okPlanNameBtn" class="btn btn-primary">Lưu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal xác nhận xóa kế hoạch học tập -->
+    <div id="confirmDeletePlanModal" class="modal">
+      <div class="modal-content">
+        <span class="close" id="closeDeletePlanModal">&times;</span>
+        <h2>Xác nhận</h2>
+        <p>Bạn có chắc chắn muốn xóa kế hoạch học tập này không?</p>
+        <div class="modal-buttons">
+          <button id="confirmDeletePlanBtn" class="btn btn-danger">Xóa</button>
+          <button id="cancelDeletePlanBtn" class="btn">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/study-plan.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/evaluation.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
