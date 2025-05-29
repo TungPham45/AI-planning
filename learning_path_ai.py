@@ -265,37 +265,21 @@ class LearningPathAI:
             learning_path = []
             start_date = datetime.now()
 
-            # Lấy danh sách chủ đề lý thuyết cho toàn bộ lộ trình
-            all_topics = self._get_theory_topics(subject, 1, duration_weeks, level, grade)
-            if not all_topics:
-                print(f"[ERROR] No theory topics found for subject={subject}, level={level}, grade={grade}")
-                return None
-
             # Lấy thông tin chi tiết về các chủ đề
             topic_breakdown = self.get_topic_breakdown(subject, grade, level)
             if not topic_breakdown:
                 print("[ERROR] Failed to get topic breakdown")
                 return None
 
-            # Tính toán thời gian cho mỗi chủ đề
-            topic_time_estimates = {
-                'math': {
-                    '10': {
-                        'Hàm số và đồ thị': 2.0,
-                        'Hàm số bậc ba': 3.0,
-                        'Phương trình bậc ba': 2.5,
-                        'Bất phương trình bậc hai': 2.0,
-                        'Hệ phương trình bậc ba': 2.5,
-                        'Phương trình chứa căn': 2.0,
-                        'Phương trình chứa dấu giá trị tuyệt đối': 2.0
-                    }
-                }
-            }
+            # Tính toán tổng số bài học cần phân bổ
+            total_lessons = sum(len(topic['lessons']) for topic in topic_breakdown['topics'])
+            total_days = duration_weeks * 7
+            lessons_per_day = max(1, total_lessons // total_days)
 
-            # Tính toán số ngày cần thiết cho mỗi chủ đề
+            # Khởi tạo biến theo dõi tiến độ
             current_topic_index = 0
             current_lesson_index = 0
-            topic_progress = {}  # Theo dõi tiến độ của từng chủ đề
+            remaining_lessons = total_lessons
 
             for week in range(1, duration_weeks + 1):
                 week_start = start_date + timedelta(days=(week-1)*7)
@@ -323,25 +307,22 @@ class LearningPathAI:
                         theory_hours = daily_study_hours * 0.5
                         practice_hours = daily_study_hours * 0.5
 
-                    # Lấy chủ đề và bài học hiện tại
-                    if current_topic_index < len(all_topics):
-                        current_topic = all_topics[current_topic_index]
-                        topic_info = next((t for t in topic_breakdown['topics'] if t['name'] == current_topic), None)
-                        
-                        if topic_info:
-                            # Lấy bài học hiện tại
-                            current_lesson = topic_info['lessons'][current_lesson_index] if current_lesson_index < len(topic_info['lessons']) else None
+                    # Lấy bài học hiện tại
+                    if current_topic_index < len(topic_breakdown['topics']):
+                        current_topic = topic_breakdown['topics'][current_topic_index]
+                        if current_lesson_index < len(current_topic['lessons']):
+                            current_lesson = current_topic['lessons'][current_lesson_index]
                             
                             # Tạo kế hoạch cho ngày
                             daily_plan = {
                                 'date': day_date.strftime('%Y-%m-%d'),
-                                'theory_topics': [f"{current_topic} - {current_lesson}"],
+                                'theory_topics': [f"{current_topic['name']} - {current_lesson}"],
                                 'practice_exercises': self._get_practice_exercises(subject, week, duration_weeks, level, grade),
                                 'theory_hours': float(theory_hours),
                                 'practice_hours': float(practice_hours),
                                 'learning_resources': self._get_learning_resources(subject, level, grade),
                                 'topic_details': [{
-                                    'topic': current_topic,
+                                    'topic': current_topic['name'],
                                     'lesson': current_lesson,
                                     'estimated_hours': theory_hours,
                                     'completed': False
@@ -350,28 +331,55 @@ class LearningPathAI:
                             
                             # Cập nhật chỉ số bài học
                             current_lesson_index += 1
-                            if current_lesson_index >= len(topic_info['lessons']):
+                            if current_lesson_index >= len(current_topic['lessons']):
                                 current_lesson_index = 0
                                 current_topic_index += 1
                             
                             week_plan['daily_plans'].append(daily_plan)
+                            remaining_lessons -= 1
                         else:
-                            # Nếu không tìm thấy thông tin chủ đề, tạo kế hoạch ôn tập
-                            daily_plan = {
-                                'date': day_date.strftime('%Y-%m-%d'),
-                                'theory_topics': ['Ôn tập và củng cố kiến thức'],
-                                'practice_exercises': self._get_practice_exercises(subject, week, duration_weeks, level, grade),
-                                'theory_hours': float(theory_hours),
-                                'practice_hours': float(practice_hours),
-                                'learning_resources': self._get_learning_resources(subject, level, grade),
-                                'topic_details': [{
-                                    'topic': 'Ôn tập',
-                                    'lesson': 'Củng cố kiến thức',
-                                    'estimated_hours': theory_hours,
-                                    'completed': False
-                                }]
-                            }
-                            week_plan['daily_plans'].append(daily_plan)
+                            # Nếu đã học hết bài của chủ đề hiện tại, chuyển sang chủ đề tiếp theo
+                            current_lesson_index = 0
+                            current_topic_index += 1
+                            if current_topic_index < len(topic_breakdown['topics']):
+                                current_topic = topic_breakdown['topics'][current_topic_index]
+                                current_lesson = current_topic['lessons'][0]
+                                
+                                daily_plan = {
+                                    'date': day_date.strftime('%Y-%m-%d'),
+                                    'theory_topics': [f"{current_topic['name']} - {current_lesson}"],
+                                    'practice_exercises': self._get_practice_exercises(subject, week, duration_weeks, level, grade),
+                                    'theory_hours': float(theory_hours),
+                                    'practice_hours': float(practice_hours),
+                                    'learning_resources': self._get_learning_resources(subject, level, grade),
+                                    'topic_details': [{
+                                        'topic': current_topic['name'],
+                                        'lesson': current_lesson,
+                                        'estimated_hours': theory_hours,
+                                        'completed': False
+                                    }]
+                                }
+                                
+                                current_lesson_index = 1
+                                week_plan['daily_plans'].append(daily_plan)
+                                remaining_lessons -= 1
+                            else:
+                                # Nếu đã học hết tất cả chủ đề, tạo kế hoạch ôn tập
+                                daily_plan = {
+                                    'date': day_date.strftime('%Y-%m-%d'),
+                                    'theory_topics': ['Ôn tập và củng cố kiến thức'],
+                                    'practice_exercises': self._get_practice_exercises(subject, week, duration_weeks, level, grade),
+                                    'theory_hours': float(theory_hours),
+                                    'practice_hours': float(practice_hours),
+                                    'learning_resources': self._get_learning_resources(subject, level, grade),
+                                    'topic_details': [{
+                                        'topic': 'Ôn tập',
+                                        'lesson': 'Củng cố kiến thức',
+                                        'estimated_hours': theory_hours,
+                                        'completed': False
+                                    }]
+                                }
+                                week_plan['daily_plans'].append(daily_plan)
                     else:
                         # Nếu đã học hết tất cả chủ đề, tạo kế hoạch ôn tập
                         daily_plan = {
