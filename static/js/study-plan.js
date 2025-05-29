@@ -52,8 +52,20 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             window.lastOverview = formData;
 
+            // Log dữ liệu form trước khi validate
+            console.log('[DEBUG] Form data before validation:', formData);
+
             // Kiểm tra dữ liệu bắt buộc
             if (!formData.subject || !formData.grade || !formData.current_score || !formData.target_score || !formData.duration_weeks || !formData.daily_study_hours || !formData.learning_style) {
+                console.error('[ERROR] Missing required fields:', {
+                    subject: !formData.subject,
+                    grade: !formData.grade,
+                    current_score: !formData.current_score,
+                    target_score: !formData.target_score,
+                    duration_weeks: !formData.duration_weeks,
+                    daily_study_hours: !formData.daily_study_hours,
+                    learning_style: !formData.learning_style
+                });
                 showModal('errorModal', 'Vui lòng nhập đầy đủ các trường bắt buộc!');
                 return;
             }
@@ -71,6 +83,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Log dữ liệu trước khi gửi request
+            console.log('[DEBUG] Sending request with data:', formData);
+
             // Gửi request đến server
             const response = await fetch('/api/generate-study-plan', {
                 method: 'POST',
@@ -80,14 +95,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify(formData)
             });
 
+            // Log response status
+            console.log('[DEBUG] Response status:', response.status);
+            console.log('[DEBUG] Response headers:', Object.fromEntries(response.headers.entries()));
+
             const data = await response.json();
+            console.log('[DEBUG] Response data:', data);
 
             if (!response.ok) {
-                throw new Error(data.error || 'Lỗi khi tạo kế hoạch học tập');
+                throw new Error(data.message || 'Lỗi khi tạo kế hoạch học tập');
             }
-
-            // Log dữ liệu trả về để debug
-            console.log('API response:', data);
 
             // Hiển thị kết quả
             displayStudyPlan(data);
@@ -95,7 +112,11 @@ document.addEventListener('DOMContentLoaded', function() {
             studyPlanResult.scrollIntoView({ behavior: 'smooth' });
 
         } catch (error) {
-            console.error('Error:', error);
+            console.error('[ERROR] Error details:', {
+                message: error.message,
+                stack: error.stack,
+                formData: window.lastOverview
+            });
             showModal('errorModal', error.message || 'Có lỗi xảy ra khi tạo kế hoạch học tập. Vui lòng thử lại.');
         } finally {
             // Khôi phục trạng thái nút
@@ -174,71 +195,76 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Thay đổi displayStudyPlan để dùng saveCurrentPlan
-    function displayStudyPlan(plan) {
+    function displayStudyPlan(data) {
         const planContent = document.getElementById('plan-content');
         const resultSection = document.getElementById('study-plan-result');
         let html = '';
-        if (!plan || !Array.isArray(plan)) {
-            planContent.innerHTML = '<div class="error">Dữ liệu kế hoạch học tập không hợp lệ.</div>';
+        
+        // Kiểm tra dữ liệu trả về
+        if (!data.success || !data.learning_path) {
+            planContent.innerHTML = '<div class="error">Không thể tạo kế hoạch học tập. Vui lòng thử lại.</div>';
             resultSection.style.display = 'block';
             return;
         }
+
+        const plan = data.learning_path;
         plan.forEach((week, weekIndex) => {
             html += `
                 <div class="week-plan">
                     <div class="week-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h4>Tuần ${weekIndex + 1}</h4>
-                        <button class="btn-evaluate" onclick="createWeekEvaluation(${weekIndex + 1})">
+                        <h4>Tuần ${week.week_number} (${week.start_date} - ${week.end_date})</h4>
+                        <button class="btn-evaluate" onclick="createWeekEvaluation(${week.week_number})">
                             <i class="fas fa-clipboard-check"></i> Đánh Giá Tuần
                         </button>
                     </div>
                     <div class="daily-plans">
             `;
+            
             if (!week.daily_plans || !Array.isArray(week.daily_plans)) {
                 html += '<div class="error">Không có dữ liệu cho các ngày trong tuần này.</div>';
             } else {
                 week.daily_plans.forEach((day, dayIndex) => {
                     html += `
                         <div class="day-plan">
-                            <div class="day-header">
-                                <h5>Ngày ${dayIndex + 1}</h5>
-                                <button class="btn-evaluate" onclick="createEvaluation(${dayIndex + 1})">
-                                    <i class="fas fa-clipboard-check"></i> Đánh Giá
-                                </button>
-                            </div>
+                            <h5>Ngày ${dayIndex + 1}</h5>
                             <div class="theory-section">
-                                <h6>Lý Thuyết</h6>
+                                <h6>Lý thuyết (${day.theory_hours} giờ)</h6>
                                 <ul>
-                                    ${(Array.isArray(day.theory_topics) ? day.theory_topics : []).map(item => `<li>${item}</li>`).join('')}
+                                    ${day.theory_topics.map(topic => `<li>${topic}</li>`).join('')}
                                 </ul>
                             </div>
                             <div class="practice-section">
-                                <h6>Thực Hành</h6>
+                                <h6>Thực hành (${day.practice_hours} giờ)</h6>
                                 <ul>
-                                    ${(Array.isArray(day.practice_exercises) ? day.practice_exercises : []).map(item => `<li>${item}</li>`).join('')}
+                                    ${day.practice_exercises.map(exercise => `<li>${exercise}</li>`).join('')}
                                 </ul>
                             </div>
                             <div class="resources-section">
-                                <h6>Tài Liệu</h6>
+                                <h6>Tài liệu học tập</h6>
                                 <ul>
-                                    ${(Array.isArray(day.learning_resources) ? day.learning_resources : []).map(item => `<li>${item}</li>`).join('')}
+                                    ${day.learning_resources.map(resource => `<li>${resource}</li>`).join('')}
                                 </ul>
                             </div>
                         </div>
                     `;
                 });
             }
+            
             html += `
                     </div>
                 </div>
             `;
         });
+
         planContent.innerHTML = html;
         resultSection.style.display = 'block';
-        planContent.innerHTML += '<button id="savePlanBtn" class="btn btn-primary" style="margin-top:2rem;">Lưu Kế Hoạch</button>';
-        document.getElementById('savePlanBtn').onclick = function() {
-            saveCurrentPlan(plan, window.lastOverview);
-        };
+        
+        // Thêm nút lưu kế hoạch
+        const saveButton = document.createElement('button');
+        saveButton.className = 'btn btn-primary';
+        saveButton.innerHTML = '<i class="fas fa-save"></i> Lưu Kế Hoạch';
+        saveButton.onclick = () => saveCurrentPlan(data.learning_path, window.lastOverview);
+        planContent.insertBefore(saveButton, planContent.firstChild);
     }
 
     // Hiển thị danh sách kế hoạch đã lưu ở tab Nhiệm Vụ

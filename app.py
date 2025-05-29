@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, redirect, jsonify, send_from_directory
 from openpyxl import Workbook, load_workbook
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 from werkzeug.utils import secure_filename
 import time
 from learning_path_ai import LearningPathAI
-from generate_training_data import generate_student_data, save_training_data
+from generate_training_data import generate_training_data
+import pandas as pd
 
 app = Flask(__name__)
 ai = LearningPathAI()
@@ -33,13 +34,47 @@ if not os.path.exists(DEFAULT_AVATAR):
         f.write(svg_content)
 
 # Kiểm tra xem mô hình đã được huấn luyện chưa
+print("\nKiểm tra và khởi tạo mô hình AI...")
 if os.path.exists('learning_path_model.joblib'):
-    ai.load_model()
+    try:
+        print("Tìm thấy file mô hình, đang tải...")
+        ai.load_model()
+        if not ai.is_trained:
+            print("Mô hình chưa được huấn luyện, đang huấn luyện lại...")
+            # Tạo và lưu dữ liệu training mới
+            training_file = generate_training_data()
+            print(f"Đã tạo dữ liệu training mới: {training_file}")
+            # Đổi tên file mới nhất thành training_data.csv
+            if training_file != 'training_data.csv':
+                if os.path.exists('training_data.csv'):
+                    os.remove('training_data.csv')
+                os.rename(training_file, 'training_data.csv')
+            ai.train()
+    except Exception as e:
+        print(f"Lỗi khi tải mô hình: {e}")
+        print("Đang tạo mô hình mới...")
+        # Tạo và lưu dữ liệu training mới
+        training_file = generate_training_data()
+        print(f"Đã tạo dữ liệu training mới: {training_file}")
+        # Đổi tên file mới nhất thành training_data.csv
+        if training_file != 'training_data.csv':
+            if os.path.exists('training_data.csv'):
+                os.remove('training_data.csv')
+            os.rename(training_file, 'training_data.csv')
+        ai.train()
 else:
-    # Tạo dữ liệu huấn luyện và huấn luyện mô hình
-    training_data = generate_student_data(50)
-    save_training_data(training_data)
+    print("Không tìm thấy file mô hình, đang tạo mới...")
+    # Tạo và lưu dữ liệu training mới
+    training_file = generate_training_data()
+    print(f"Đã tạo dữ liệu training mới: {training_file}")
+    # Đổi tên file mới nhất thành training_data.csv
+    if training_file != 'training_data.csv':
+        if os.path.exists('training_data.csv'):
+            os.remove('training_data.csv')
+        os.rename(training_file, 'training_data.csv')
     ai.train()
+
+print("Khởi tạo mô hình AI hoàn tất!")
 
 # ✅ Khởi tạo file Excel nếu chưa tồn tại
 def init_excel():
@@ -308,46 +343,103 @@ def dashboard():
 @app.route('/api/generate-study-plan', methods=['POST'])
 def generate_study_plan():
     try:
+        print("\n[DEBUG] ====== Bắt đầu xử lý request generate-study-plan ======")
+        
+        # Lấy dữ liệu từ request
         data = request.get_json()
-        if not data:
-            return jsonify({'error': 'Không có dữ liệu được gửi đến'}), 400
+        print("[DEBUG] Received data:", data)
         
         # Kiểm tra dữ liệu đầu vào
         required_fields = ['subject', 'grade', 'current_score', 'target_score', 
                          'duration_weeks', 'daily_study_hours', 'learning_style']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return jsonify({'error': f'Thiếu các trường: {", ".join(missing_fields)}'}), 400
-
+        
+        # In ra kiểu dữ liệu của các trường
+        print("[DEBUG] Data types:", {k: type(v).__name__ for k, v in data.items()})
+        
+        # Kiểm tra các trường bắt buộc
+        for field in required_fields:
+            if field not in data:
+                return jsonify({
+                    'error': f'Thiếu trường {field}'
+                }), 400
+        
+        # Chuyển đổi các giá trị số
+        try:
+            current_score = float(data['current_score'])
+            target_score = float(data['target_score'])
+            duration_weeks = int(data['duration_weeks'])
+            daily_study_hours = float(data['daily_study_hours'])
+            
+            print(f"[DEBUG] Converted values: current_score={current_score} ({type(current_score)}), "
+                  f"target_score={target_score} ({type(target_score)}), "
+                  f"duration_weeks={duration_weeks} ({type(duration_weeks)}), "
+                  f"daily_study_hours={daily_study_hours} ({type(daily_study_hours)})")
+            
+        except ValueError as e:
+            return jsonify({
+                'error': f'Giá trị không hợp lệ: {str(e)}'
+            }), 400
+        
         # Kiểm tra giá trị hợp lệ
-        if not (0 <= data['current_score'] <= 10) or not (0 <= data['target_score'] <= 10):
-            return jsonify({'error': 'Điểm số phải nằm trong khoảng 0-10'}), 400
+        if not (0 <= current_score <= 10 and 0 <= target_score <= 10):
+            return jsonify({
+                'error': 'Điểm số phải nằm trong khoảng 0-10'
+            }), 400
+            
+        if duration_weeks <= 0 or daily_study_hours <= 0:
+            return jsonify({
+                'error': 'Thời gian học phải lớn hơn 0'
+            }), 400
         
-        if not (1 <= data['duration_weeks'] <= 52):
-            return jsonify({'error': 'Thời gian học phải từ 1-52 tuần'}), 400
+        # Gọi AI để tạo lộ trình học tập
+        print("[DEBUG] Calling AI generate_learning_path with:", {
+            'subject': data['subject'],
+            'current_score': current_score,
+            'target_score': target_score,
+            'duration_weeks': duration_weeks,
+            'daily_study_hours': daily_study_hours,
+            'learning_style': data['learning_style'],
+            'grade': data['grade']
+        })
         
-        if not (1 <= data['daily_study_hours'] <= 8):
-            return jsonify({'error': 'Số giờ học mỗi ngày phải từ 1-8 giờ'}), 400
-
-        # Tạo kế hoạch học tập
         learning_path = ai.generate_learning_path(
             subject=data['subject'],
-            current_score=data['current_score'],
-            target_score=data['target_score'],
-            duration_weeks=data['duration_weeks'],
-            daily_study_hours=data['daily_study_hours'],
+            current_score=current_score,
+            target_score=target_score,
+            duration_weeks=duration_weeks,
+            daily_study_hours=daily_study_hours,
             learning_style=data['learning_style'],
             grade=data['grade']
         )
         
         if learning_path is None:
-            return jsonify({'error': 'Không thể tạo kế hoạch học tập'}), 500
+            print("[ERROR] AI returned None (không thể tạo lộ trình học tập)")
+            return jsonify({
+                'error': 'Không thể tạo lộ trình học tập. Vui lòng thử lại.'
+            }), 500
+            
+        print("[DEBUG] Learning path generated successfully")
+        print("[DEBUG] Learning path structure:", {
+            'type': type(learning_path).__name__,
+            'length': len(learning_path),
+            'first_week': type(learning_path[0]).__name__ if learning_path else None
+        })
         
-        return jsonify(learning_path)
-    
+        return jsonify({
+            'success': True,
+            'learning_path': learning_path
+        })
+        
     except Exception as e:
-        app.logger.error(f'Lỗi khi tạo kế hoạch học tập: {str(e)}')
-        return jsonify({'error': f'Lỗi server: {str(e)}'}), 500
+        print("\n[ERROR] Exception in generate_study_plan:")
+        print(f"[ERROR] Error type: {type(e).__name__}")
+        print(f"[ERROR] Error message: {str(e)}")
+        import traceback
+        print("[ERROR] Stack trace:")
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Đã xảy ra lỗi khi tạo lộ trình học tập'
+        }), 500
 
 @app.route('/favicon.ico')
 def favicon():
@@ -357,4 +449,12 @@ def favicon():
 # ✅ Khởi chạy app
 if __name__ == "__main__":
     init_excel()
+    # Tạo và lưu dữ liệu training mới khi khởi động app
+    training_file = generate_training_data()
+    print(f"Đã tạo dữ liệu training mới: {training_file}")
+    # Đổi tên file mới nhất thành training_data.csv
+    if training_file != 'training_data.csv':
+        if os.path.exists('training_data.csv'):
+            os.remove('training_data.csv')
+        os.rename(training_file, 'training_data.csv')
     app.run(debug=True)
