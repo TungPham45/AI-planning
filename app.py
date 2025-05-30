@@ -12,7 +12,16 @@ import pandas as pd
 app = Flask(__name__)
 ai = LearningPathAI()
 
-EXCEL_FILE = "users.xlsx"
+# Excel file constants
+USERS_EXCEL = "users.xlsx"
+LEARNING_PATH_EXCEL = "learning_path.xlsx"
+DAILY_PLANS_EXCEL = "daily_plans.xlsx"
+GRADE_EXCEL = "grade.xlsx"
+SUBJECT_EXCEL = "subject.xlsx"
+TOPIC_EXCEL = "topic.xlsx"
+THEORY_EXCEL = "theory.xlsx"
+PRACTICE_EXCEL = "practice.xlsx"
+
 UPLOAD_FOLDER = 'static/uploads'
 DEFAULT_AVATAR = 'static/default-avatar.svg'
 
@@ -32,6 +41,78 @@ if not os.path.exists(DEFAULT_AVATAR):
     # Lưu file SVG
     with open(DEFAULT_AVATAR, 'w') as f:
         f.write(svg_content)
+
+def init_all_excel_files():
+    """Khởi tạo tất cả các file Excel cần thiết"""
+    excel_files = {
+        USERS_EXCEL: {
+            'sheet_name': 'Users',
+            'headers': ['student_id', 'full_name', 'email', 'password', 'dob', 'join_date', 'image_url']
+        },
+        LEARNING_PATH_EXCEL: {
+            'sheet_name': 'LearningPaths',
+            'headers': ['path_id', 'user_id', 'subject', 'current_score', 'target_score', 
+                       'duration_weeks', 'daily_study_hours', 'learning_style', 
+                       'success_rate', 'start_date', 'end_date', 'status']
+        },
+        DAILY_PLANS_EXCEL: {
+            'sheet_name': 'DailyPlans',
+            'headers': ['plan_id', 'path_id', 'date', 'theory_topics', 'practice_exercises',
+                       'theory_hours', 'practice_hours', 'learning_resources', 'completed']
+        },
+        GRADE_EXCEL: {
+            'sheet_name': 'Grades',
+            'headers': ['ID_grade', 'Name_grade']
+        },
+        SUBJECT_EXCEL: {
+            'sheet_name': 'Subjects',
+            'headers': ['ID_subject', 'name_subject', 'ID_grade']
+        },
+        TOPIC_EXCEL: {
+            'sheet_name': 'Topics',
+            'headers': ['ID_topic', 'topic_name', 'ID_subject', 'ID_grade']
+        },
+        THEORY_EXCEL: {
+            'sheet_name': 'Theory',
+            'headers': ['ID_theory', 'theory_name', 'ID_topic', 'ID_subject', 'ID_grade',
+                       'level', 'URL', 'completion_time']
+        },
+        PRACTICE_EXCEL: {
+            'sheet_name': 'Practice',
+            'headers': ['ID_practice', 'practice_name', 'ID_topic', 'ID_subject', 'ID_grade',
+                       'level', 'ID_theory']
+        }
+    }
+
+    for file_name, config in excel_files.items():
+        try:
+            if not os.path.exists(file_name):
+                wb = Workbook()
+                ws = wb.active
+                ws.title = config['sheet_name']
+                ws.append(config['headers'])
+                wb.save(file_name)
+                print(f"Đã tạo file Excel mới: {file_name}")
+            else:
+                # Kiểm tra xem file có phải là file Excel hợp lệ không
+                try:
+                    wb = load_workbook(file_name)
+                    print(f"File Excel đã tồn tại và hợp lệ: {file_name}")
+                except Exception as e:
+                    print(f"File Excel không hợp lệ, đang tạo lại: {e}")
+                    os.remove(file_name)
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = config['sheet_name']
+                    ws.append(config['headers'])
+                    wb.save(file_name)
+                    print(f"Đã tạo lại file Excel: {file_name}")
+        except Exception as e:
+            print(f"Lỗi khi khởi tạo Excel {file_name}: {e}")
+            raise
+
+# Gọi hàm khởi tạo Excel khi khởi động ứng dụng
+init_all_excel_files()
 
 # Kiểm tra xem mô hình đã được huấn luyện chưa
 print("\nKiểm tra và khởi tạo mô hình AI...")
@@ -79,30 +160,30 @@ print("Khởi tạo mô hình AI hoàn tất!")
 # ✅ Khởi tạo file Excel nếu chưa tồn tại
 def init_excel():
     try:
-        if not os.path.exists(EXCEL_FILE):
+        if not os.path.exists(USERS_EXCEL):
             wb = Workbook()
             ws = wb.active
             ws.title = "Users"
             # Thêm header
             headers = ['student_id', 'full_name', 'email', 'password', 'dob', 'join_date', 'image_url']
             ws.append(headers)
-            wb.save(EXCEL_FILE)
-            print(f"Đã tạo file Excel mới: {EXCEL_FILE}")
+            wb.save(USERS_EXCEL)
+            print(f"Đã tạo file Excel mới: {USERS_EXCEL}")
         else:
             # Kiểm tra xem file có phải là file Excel hợp lệ không
             try:
-                wb = load_workbook(EXCEL_FILE)
-                print(f"File Excel đã tồn tại và hợp lệ: {EXCEL_FILE}")
+                wb = load_workbook(USERS_EXCEL)
+                print(f"File Excel đã tồn tại và hợp lệ: {USERS_EXCEL}")
             except Exception as e:
                 print(f"File Excel không hợp lệ, đang tạo lại: {e}")
-                os.remove(EXCEL_FILE)
+                os.remove(USERS_EXCEL)
                 wb = Workbook()
                 ws = wb.active
                 ws.title = "Users"
                 headers = ['student_id', 'full_name', 'email', 'password', 'dob', 'join_date', 'image_url']
                 ws.append(headers)
-                wb.save(EXCEL_FILE)
-                print(f"Đã tạo lại file Excel: {EXCEL_FILE}")
+                wb.save(USERS_EXCEL)
+                print(f"Đã tạo lại file Excel: {USERS_EXCEL}")
     except Exception as e:
         print(f"Lỗi khi khởi tạo Excel: {e}")
         raise
@@ -110,7 +191,7 @@ def init_excel():
 # ✅ Đọc người dùng từ Excel
 def read_excel():
     try:
-        wb = load_workbook(EXCEL_FILE)
+        wb = load_workbook(USERS_EXCEL)
         ws = wb.active
         users = []
         for row in ws.iter_rows(min_row=2, values_only=True):
@@ -132,12 +213,12 @@ def read_excel():
 # ✅ Thêm người dùng mới
 def add_user(name, dob, email, password):
     try:
-        wb = load_workbook(EXCEL_FILE)
+        wb = load_workbook(USERS_EXCEL)
         ws = wb.active
         student_id = generate_student_id()
         join_date = datetime.now().strftime('%Y-%m-%d')
         ws.append([student_id, name, email, password, dob, join_date, None])
-        wb.save(EXCEL_FILE)
+        wb.save(USERS_EXCEL)
         print(f"Đã thêm người dùng mới: {email}")
     except Exception as e:
         print(f"Lỗi khi thêm người dùng: {e}")
@@ -244,7 +325,7 @@ def update_profile():
             return jsonify({'success': False, 'message': 'Email không được để trống'})
 
         # Đọc dữ liệu từ Excel
-        wb = load_workbook(EXCEL_FILE)
+        wb = load_workbook(USERS_EXCEL)
         ws = wb.active
         
         # Tìm người dùng theo email
@@ -270,7 +351,7 @@ def update_profile():
                         row[6].value = f'/static/uploads/{filename}'  # Image URL ở cột thứ 7
                 
                 # Lưu lại vào Excel
-                wb.save(EXCEL_FILE)
+                wb.save(USERS_EXCEL)
                 
                 return jsonify({
                     'success': True,
@@ -302,7 +383,7 @@ def change_password():
         if not all([email, current_password, new_password]):
             return jsonify({"success": False, "message": "Vui lòng điền đầy đủ thông tin"}), 400
 
-        wb = load_workbook(EXCEL_FILE)
+        wb = load_workbook(USERS_EXCEL)
         ws = wb.active
         
         # Tìm dòng chứa email và kiểm tra mật khẩu hiện tại
@@ -313,7 +394,7 @@ def change_password():
                 
                 # Cập nhật mật khẩu mới
                 row[3].value = new_password
-                wb.save(EXCEL_FILE)
+                wb.save(USERS_EXCEL)
                 return jsonify({"success": True, "message": "Đổi mật khẩu thành công"}), 200
         
         return jsonify({"success": False, "message": "Không tìm thấy thông tin người dùng"}), 404
@@ -445,6 +526,456 @@ def generate_study_plan():
 def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'),
                              'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+# Hàm quản lý Grade
+def add_grade(name_grade):
+    try:
+        wb = load_workbook(GRADE_EXCEL)
+        ws = wb.active
+        grade_id = f"G{len(list(ws.rows)):03d}"
+        ws.append([grade_id, name_grade])
+        wb.save(GRADE_EXCEL)
+        return grade_id
+    except Exception as e:
+        print(f"Lỗi khi thêm grade: {e}")
+        raise
+
+def get_all_grades():
+    try:
+        wb = load_workbook(GRADE_EXCEL)
+        ws = wb.active
+        grades = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0]:
+                grades.append({
+                    'ID_grade': row[0],
+                    'Name_grade': row[1]
+                })
+        return grades
+    except Exception as e:
+        print(f"Lỗi khi đọc grades: {e}")
+        return []
+
+# Hàm quản lý Subject
+def add_subject(name_subject, grade_id):
+    try:
+        wb = load_workbook(SUBJECT_EXCEL)
+        ws = wb.active
+        subject_id = f"S{len(list(ws.rows)):03d}"
+        ws.append([subject_id, name_subject, grade_id])
+        wb.save(SUBJECT_EXCEL)
+        return subject_id
+    except Exception as e:
+        print(f"Lỗi khi thêm subject: {e}")
+        raise
+
+def get_subjects_by_grade(grade_id):
+    try:
+        wb = load_workbook(SUBJECT_EXCEL)
+        ws = wb.active
+        subjects = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] and row[2] == grade_id:
+                subjects.append({
+                    'ID_subject': row[0],
+                    'name_subject': row[1],
+                    'ID_grade': row[2]
+                })
+        return subjects
+    except Exception as e:
+        print(f"Lỗi khi đọc subjects: {e}")
+        return []
+
+# Hàm quản lý Topic
+def add_topic(topic_name, subject_id, grade_id):
+    try:
+        wb = load_workbook(TOPIC_EXCEL)
+        ws = wb.active
+        topic_id = f"T{len(list(ws.rows)):03d}"
+        ws.append([topic_id, topic_name, subject_id, grade_id])
+        wb.save(TOPIC_EXCEL)
+        return topic_id
+    except Exception as e:
+        print(f"Lỗi khi thêm topic: {e}")
+        raise
+
+def get_topics_by_subject(subject_id):
+    try:
+        wb = load_workbook(TOPIC_EXCEL)
+        ws = wb.active
+        topics = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] and row[2] == subject_id:
+                topics.append({
+                    'ID_topic': row[0],
+                    'topic_name': row[1],
+                    'ID_subject': row[2],
+                    'ID_grade': row[3]
+                })
+        return topics
+    except Exception as e:
+        print(f"Lỗi khi đọc topics: {e}")
+        return []
+
+# Hàm quản lý Theory
+def add_theory(theory_name, topic_id, subject_id, grade_id, level, url, completion_time):
+    try:
+        wb = load_workbook(THEORY_EXCEL)
+        ws = wb.active
+        theory_id = f"TH{len(list(ws.rows)):03d}"
+        ws.append([theory_id, theory_name, topic_id, subject_id, grade_id, level, url, completion_time])
+        wb.save(THEORY_EXCEL)
+        return theory_id
+    except Exception as e:
+        print(f"Lỗi khi thêm theory: {e}")
+        raise
+
+def get_theories_by_topic(topic_id):
+    try:
+        wb = load_workbook(THEORY_EXCEL)
+        ws = wb.active
+        theories = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] and row[2] == topic_id:
+                theories.append({
+                    'ID_theory': row[0],
+                    'theory_name': row[1],
+                    'ID_topic': row[2],
+                    'ID_subject': row[3],
+                    'ID_grade': row[4],
+                    'level': row[5],
+                    'URL': row[6],
+                    'completion_time': row[7]
+                })
+        return theories
+    except Exception as e:
+        print(f"Lỗi khi đọc theories: {e}")
+        return []
+
+# Hàm quản lý Practice
+def add_practice(practice_name, topic_id, subject_id, grade_id, level, theory_id):
+    try:
+        wb = load_workbook(PRACTICE_EXCEL)
+        ws = wb.active
+        practice_id = f"P{len(list(ws.rows)):03d}"
+        ws.append([practice_id, practice_name, topic_id, subject_id, grade_id, level, theory_id])
+        wb.save(PRACTICE_EXCEL)
+        return practice_id
+    except Exception as e:
+        print(f"Lỗi khi thêm practice: {e}")
+        raise
+
+def get_practices_by_theory(theory_id):
+    try:
+        wb = load_workbook(PRACTICE_EXCEL)
+        ws = wb.active
+        practices = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] and row[6] == theory_id:
+                practices.append({
+                    'ID_practice': row[0],
+                    'practice_name': row[1],
+                    'ID_topic': row[2],
+                    'ID_subject': row[3],
+                    'ID_grade': row[4],
+                    'level': row[5],
+                    'ID_theory': row[6]
+                })
+        return practices
+    except Exception as e:
+        print(f"Lỗi khi đọc practices: {e}")
+        return []
+
+# API endpoints cho quản lý dữ liệu
+@app.route('/api/grades', methods=['GET'])
+def get_grades():
+    try:
+        grades = get_all_grades()
+        return jsonify({"success": True, "grades": grades})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/subjects/<grade_id>', methods=['GET'])
+def get_subjects(grade_id):
+    try:
+        subjects = get_subjects_by_grade(grade_id)
+        return jsonify({"success": True, "subjects": subjects})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/topics/<subject_id>', methods=['GET'])
+def get_topics(subject_id):
+    try:
+        topics = get_topics_by_subject(subject_id)
+        return jsonify({"success": True, "topics": topics})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/theories/<topic_id>', methods=['GET'])
+def get_theories(topic_id):
+    try:
+        theories = get_theories_by_topic(topic_id)
+        return jsonify({"success": True, "theories": theories})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/practices/<theory_id>', methods=['GET'])
+def get_practices(theory_id):
+    try:
+        practices = get_practices_by_theory(theory_id)
+        return jsonify({"success": True, "practices": practices})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+# API endpoints cho thêm dữ liệu mới
+@app.route('/api/grades', methods=['POST'])
+def create_grade():
+    try:
+        data = request.get_json()
+        if not data or 'name_grade' not in data:
+            return jsonify({"success": False, "message": "Thiếu thông tin name_grade"}), 400
+        
+        grade_id = add_grade(data['name_grade'])
+        return jsonify({"success": True, "grade_id": grade_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/subjects', methods=['POST'])
+def create_subject():
+    try:
+        data = request.get_json()
+        if not data or 'name_subject' not in data or 'grade_id' not in data:
+            return jsonify({"success": False, "message": "Thiếu thông tin name_subject hoặc grade_id"}), 400
+        
+        subject_id = add_subject(data['name_subject'], data['grade_id'])
+        return jsonify({"success": True, "subject_id": subject_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/topics', methods=['POST'])
+def create_topic():
+    try:
+        data = request.get_json()
+        if not data or 'topic_name' not in data or 'subject_id' not in data or 'grade_id' not in data:
+            return jsonify({"success": False, "message": "Thiếu thông tin topic_name, subject_id hoặc grade_id"}), 400
+        
+        topic_id = add_topic(data['topic_name'], data['subject_id'], data['grade_id'])
+        return jsonify({"success": True, "topic_id": topic_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/theories', methods=['POST'])
+def create_theory():
+    try:
+        data = request.get_json()
+        required_fields = ['theory_name', 'topic_id', 'subject_id', 'grade_id', 'level', 'url', 'completion_time']
+        if not data or not all(field in data for field in required_fields):
+            return jsonify({"success": False, "message": "Thiếu thông tin bắt buộc"}), 400
+        
+        theory_id = add_theory(
+            data['theory_name'],
+            data['topic_id'],
+            data['subject_id'],
+            data['grade_id'],
+            data['level'],
+            data['url'],
+            data['completion_time']
+        )
+        return jsonify({"success": True, "theory_id": theory_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/practices', methods=['POST'])
+def create_practice():
+    try:
+        data = request.get_json()
+        required_fields = ['practice_name', 'topic_id', 'subject_id', 'grade_id', 'level', 'theory_id']
+        if not data or not all(field in data for field in required_fields):
+            return jsonify({"success": False, "message": "Thiếu thông tin bắt buộc"}), 400
+        
+        practice_id = add_practice(
+            data['practice_name'],
+            data['topic_id'],
+            data['subject_id'],
+            data['grade_id'],
+            data['level'],
+            data['theory_id']
+        )
+        return jsonify({"success": True, "practice_id": practice_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+def init_sample_data():
+    """Khởi tạo dữ liệu mẫu cho các file Excel"""
+    try:
+        # Thêm các lớp học
+        grades = [
+            "Lớp 10",
+            "Lớp 11",
+            "Lớp 12"
+        ]
+        grade_ids = {}
+        for grade in grades:
+            grade_id = add_grade(grade)
+            grade_ids[grade] = grade_id
+
+        # Thêm các môn học
+        subjects = {
+            "Lớp 10": ["Toán", "Vật Lý", "Hóa Học"],
+            "Lớp 11": ["Toán", "Vật Lý", "Hóa Học"],
+            "Lớp 12": ["Toán", "Vật Lý", "Hóa Học"]
+        }
+        subject_ids = {}
+        for grade, subject_list in subjects.items():
+            grade_id = grade_ids[grade]
+            for subject in subject_list:
+                subject_id = add_subject(subject, grade_id)
+                subject_ids[f"{grade}_{subject}"] = subject_id
+
+        # Thêm các chủ đề cho Toán lớp 10
+        math_10_topics = [
+            "Mệnh đề – Tập hợp",
+            "Hàm số bậc nhất và bậc hai",
+            "Thống kê và xác suất",
+            "Phương pháp tọa độ trong mặt phẳng",
+            "Hình học không gian"
+        ]
+        topic_ids = {}
+        for topic in math_10_topics:
+            topic_id = add_topic(topic, subject_ids["Lớp 10_Toán"], grade_ids["Lớp 10"])
+            topic_ids[f"Lớp 10_Toán_{topic}"] = topic_id
+
+        # Thêm bài học lý thuyết mẫu cho chủ đề "Mệnh đề – Tập hợp"
+        theory_lessons = [
+            {
+                "name": "Khái niệm mệnh đề, phủ định, mệnh đề kéo theo, mệnh đề đảo",
+                "level": "basic",
+                "url": "https://example.com/lesson1",
+                "completion_time": 45
+            },
+            {
+                "name": "Tập hợp, phần tử, các phép toán trên tập hợp",
+                "level": "basic",
+                "url": "https://example.com/lesson2",
+                "completion_time": 60
+            }
+        ]
+        theory_ids = {}
+        for lesson in theory_lessons:
+            theory_id = add_theory(
+                lesson["name"],
+                topic_ids["Lớp 10_Toán_Mệnh đề – Tập hợp"],
+                subject_ids["Lớp 10_Toán"],
+                grade_ids["Lớp 10"],
+                lesson["level"],
+                lesson["url"],
+                lesson["completion_time"]
+            )
+            theory_ids[lesson["name"]] = theory_id
+
+        print("Đã khởi tạo dữ liệu mẫu thành công!")
+        return True
+    except Exception as e:
+        print(f"Lỗi khi khởi tạo dữ liệu mẫu: {e}")
+        return False
+
+# Gọi hàm khởi tạo dữ liệu mẫu khi khởi động ứng dụng
+init_sample_data()
+
+def generate_practice_exercises(theory_id):
+    """Tạo bài tập thực hành dựa trên bài học lý thuyết sử dụng AI"""
+    try:
+        # Lấy thông tin bài học lý thuyết
+        wb = load_workbook(THEORY_EXCEL)
+        ws = wb.active
+        theory_info = None
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] == theory_id:
+                theory_info = {
+                    'ID_theory': row[0],
+                    'theory_name': row[1],
+                    'ID_topic': row[2],
+                    'ID_subject': row[3],
+                    'ID_grade': row[4],
+                    'level': row[5],
+                    'URL': row[6],
+                    'completion_time': row[7]
+                }
+                break
+        
+        if not theory_info:
+            raise Exception("Không tìm thấy bài học lý thuyết")
+
+        # Lấy thông tin chủ đề
+        wb = load_workbook(TOPIC_EXCEL)
+        ws = wb.active
+        topic_info = None
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] == theory_info['ID_topic']:
+                topic_info = {
+                    'ID_topic': row[0],
+                    'topic_name': row[1],
+                    'ID_subject': row[2],
+                    'ID_grade': row[3]
+                }
+                break
+
+        if not topic_info:
+            raise Exception("Không tìm thấy thông tin chủ đề")
+
+        # Tạo bài tập thực hành sử dụng AI
+        # TODO: Thay thế phần này bằng việc gọi API của mô hình AI thực tế
+        practice_exercises = [
+            {
+                "practice_name": f"Bài tập 1: {theory_info['theory_name']}",
+                "level": theory_info['level'],
+                "content": "Nội dung bài tập sẽ được tạo bởi AI"
+            },
+            {
+                "practice_name": f"Bài tập 2: {theory_info['theory_name']}",
+                "level": theory_info['level'],
+                "content": "Nội dung bài tập sẽ được tạo bởi AI"
+            },
+            {
+                "practice_name": f"Bài tập 3: {theory_info['theory_name']}",
+                "level": theory_info['level'],
+                "content": "Nội dung bài tập sẽ được tạo bởi AI"
+            }
+        ]
+
+        # Thêm các bài tập vào database
+        practice_ids = []
+        for exercise in practice_exercises:
+            practice_id = add_practice(
+                exercise["practice_name"],
+                theory_info['ID_topic'],
+                theory_info['ID_subject'],
+                theory_info['ID_grade'],
+                exercise["level"],
+                theory_id
+            )
+            practice_ids.append(practice_id)
+
+        return practice_ids
+    except Exception as e:
+        print(f"Lỗi khi tạo bài tập thực hành: {e}")
+        raise
+
+@app.route('/api/generate-practice/<theory_id>', methods=['POST'])
+def generate_practice(theory_id):
+    """API endpoint để tạo bài tập thực hành cho một bài học lý thuyết"""
+    try:
+        practice_ids = generate_practice_exercises(theory_id)
+        return jsonify({
+            "success": True,
+            "message": "Đã tạo bài tập thực hành thành công",
+            "practice_ids": practice_ids
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Lỗi khi tạo bài tập thực hành: {str(e)}"
+        }), 500
 
 # ✅ Khởi chạy app
 if __name__ == "__main__":
