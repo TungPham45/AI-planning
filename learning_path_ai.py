@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 import joblib
 from datetime import datetime, timedelta
 import traceback
+import os
 
 class LearningPathAI:
     def __init__(self):
@@ -24,6 +25,44 @@ class LearningPathAI:
         # Giới hạn môn học và cấp lớp
         self.ALLOWED_SUBJECTS = ['math', 'physics', 'chemistry']
         self.ALLOWED_GRADES = ['10', '11', '12']
+        
+        # Đọc dữ liệu từ các file Excel
+        self.excel_data = {}
+        try:
+            print("\n[DEBUG] Đang đọc dữ liệu từ các file Excel...")
+            
+            # Đọc file theory.xlsx
+            if os.path.exists('theory.xlsx'):
+                self.excel_data['theory'] = pd.read_excel('theory.xlsx')
+                print("[DEBUG] Đã đọc theory.xlsx")
+            
+            # Đọc file practice.xlsx
+            if os.path.exists('practice.xlsx'):
+                self.excel_data['practice'] = pd.read_excel('practice.xlsx')
+                print("[DEBUG] Đã đọc practice.xlsx")
+            
+            # Đọc file topic.xlsx
+            if os.path.exists('topic.xlsx'):
+                self.excel_data['topic'] = pd.read_excel('topic.xlsx')
+                print("[DEBUG] Đã đọc topic.xlsx")
+            
+            # Đọc file subject.xlsx
+            if os.path.exists('subject.xlsx'):
+                self.excel_data['subject'] = pd.read_excel('subject.xlsx')
+                print("[DEBUG] Đã đọc subject.xlsx")
+            
+            # Đọc file grade.xlsx
+            if os.path.exists('grade.xlsx'):
+                self.excel_data['grade'] = pd.read_excel('grade.xlsx')
+                print("[DEBUG] Đã đọc grade.xlsx")
+            
+            print("[DEBUG] Đã đọc xong tất cả các file Excel")
+            
+        except Exception as e:
+            print(f"\n[ERROR] Lỗi khi đọc file Excel: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+            self.excel_data = {}
         
     def _validate_input(self, subject, grade):
         """Kiểm tra tính hợp lệ của đầu vào"""
@@ -191,7 +230,16 @@ class LearningPathAI:
             # Dự đoán tỷ lệ thành công
             try:
                 print("[DEBUG] Making prediction...")
-                success_rate = self.model.predict(encoded_data)[0]
+                # Đảm bảo dữ liệu đầu vào là 2D array
+                if len(encoded_data) == 0:
+                    print("[ERROR] Encoded data is empty")
+                    return None
+                    
+                # Chuyển đổi DataFrame thành numpy array và reshape
+                X = encoded_data.values.reshape(1, -1)
+                print(f"[DEBUG] Reshaped data shape: {X.shape}")
+                
+                success_rate = self.model.predict(X)[0]
                 # Đảm bảo tỷ lệ thành công nằm trong khoảng 0-1
                 success_rate = max(0.0, min(1.0, float(success_rate)))
                 print(f"[DEBUG] Success rate predicted: {success_rate}")
@@ -262,7 +310,7 @@ class LearningPathAI:
             print(f"[DEBUG] Learning level determined: {level}")
             
             print("[DEBUG] Generating learning path...")
-            learning_path = []
+            weekly_plans = []
             start_date = datetime.now()
 
             # Lấy thông tin chi tiết về các chủ đề
@@ -398,14 +446,25 @@ class LearningPathAI:
                         }
                         week_plan['daily_plans'].append(daily_plan)
 
-                learning_path.append(week_plan)
+                weekly_plans.append(week_plan)
 
-            if not learning_path:
+            if not weekly_plans:
                 print("[ERROR] Failed to generate learning path")
                 return None
             print("[DEBUG] Successfully generated learning path")
             print("[DEBUG] ====== Kết thúc tạo lộ trình học tập ======\n")
-            return learning_path
+            
+            # Trả về kết quả theo cấu trúc mong đợi
+            return {
+                'weekly_plans': weekly_plans,
+                'subject': subject,
+                'grade': grade,
+                'level': level,
+                'predicted_success_rate': float(success_rate),
+                'total_weeks': duration_weeks,
+                'daily_study_hours': daily_study_hours,
+                'learning_style': learning_style
+            }
 
         except Exception as e:
             print("\n[ERROR] Exception in generate_learning_path:")
@@ -527,7 +586,7 @@ class LearningPathAI:
             
             # Tìm chủ đề hiện tại dựa trên tổng số giờ đã học
             for topic in all_topics:
-                topic_time = topic_time_estimates.get(subject, {}).get(grade, {}).get(topic, 2.0)
+                topic_time = topic_time_estimates.get(subject, {}).get(grade, {}).get(topic['name'], 2.0)
                 if total_hours_used + topic_time > total_days * theory_hours:
                     remaining_hours = topic_time - (total_days * theory_hours - total_hours_used)
                     break
@@ -538,7 +597,7 @@ class LearningPathAI:
             if current_topic_index >= len(all_topics):
                 current_topic_index = 0
                 total_hours_used = 0
-                remaining_hours = topic_time_estimates.get(subject, {}).get(grade, {}).get(all_topics[0], 2.0)
+                remaining_hours = topic_time_estimates.get(subject, {}).get(grade, {}).get(all_topics[0]['name'], 2.0)
             
             current_topic = all_topics[current_topic_index]
             
@@ -552,7 +611,7 @@ class LearningPathAI:
             
             # Lấy tài liệu học tập
             print("[DEBUG] Getting learning resources...")
-            learning_resources = self._get_learning_resources(subject, level, grade)
+            learning_resources = self._get_learning_resources(subject, grade, level)
             if not learning_resources:
                 print(f"[ERROR] No learning resources found for subject={subject}, level={level}, grade={grade}")
                 return None
@@ -571,17 +630,17 @@ class LearningPathAI:
             # Tính toán thời gian học cho ngày hiện tại
             if remaining_hours <= theory_hours:
                 # Học nốt phần còn lại của chủ đề
-                daily_plan['theory_topics'].append(f"{current_topic} (Hoàn thành - {remaining_hours:.1f} giờ)")
+                daily_plan['theory_topics'].append(f"{current_topic['name']} (Hoàn thành - {remaining_hours:.1f} giờ)")
                 daily_plan['topic_details'].append({
-                    'topic': f"{current_topic} (Hoàn thành - {remaining_hours:.1f} giờ)",
+                    'topic': f"{current_topic['name']} (Hoàn thành - {remaining_hours:.1f} giờ)",
                     'estimated_hours': remaining_hours,
                     'completed': True
                 })
             else:
                 # Học một phần của chủ đề
-                daily_plan['theory_topics'].append(f"{current_topic} (Còn {remaining_hours - theory_hours:.1f} giờ)")
+                daily_plan['theory_topics'].append(f"{current_topic['name']} (Còn {remaining_hours - theory_hours:.1f} giờ)")
                 daily_plan['topic_details'].append({
-                    'topic': f"{current_topic} (Còn {remaining_hours - theory_hours:.1f} giờ)",
+                    'topic': f"{current_topic['name']} (Còn {remaining_hours - theory_hours:.1f} giờ)",
                     'estimated_hours': theory_hours,
                     'completed': False
                 })
@@ -595,7 +654,7 @@ class LearningPathAI:
                 if remaining_practice_hours >= exercise_time:
                     daily_plan['practice_exercises'].append(exercise)
                     daily_plan['topic_details'].append({
-                        'topic': exercise,
+                        'topic': exercise['name'],
                         'estimated_hours': exercise_time,
                         'completed': False
                     })
@@ -772,492 +831,192 @@ class LearningPathAI:
         return schedule
     
     def _get_theory_topics(self, subject, week_number, total_weeks, level, grade):
-        """Lấy danh sách chủ đề lý thuyết dựa trên môn học, tuần, cấp độ và lớp"""
-        topics = {
-            'math': {
-                '10': {
-                    'basic': [
-                        'Hàm số và đồ thị',
-                        'Phương trình và hệ phương trình bậc nhất',
-                        'Bất phương trình bậc nhất',
-                        'Hàm số bậc hai',
-                        'Phương trình bậc hai',
-                        'Hệ phương trình bậc hai'
-                    ],
-                    'intermediate': [
-                        'Hàm số bậc ba',
-                        'Phương trình bậc ba',
-                        'Bất phương trình bậc hai',
-                        'Hệ phương trình bậc ba',
-                        'Phương trình chứa căn',
-                        'Phương trình chứa dấu giá trị tuyệt đối'
-                    ],
-                    'advanced': [
-                        'Hàm số mũ và logarit',
-                        'Phương trình mũ và logarit',
-                        'Bất phương trình mũ và logarit',
-                        'Hệ phương trình mũ và logarit',
-                        'Phương trình lượng giác',
-                        'Bất phương trình lượng giác'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Hàm số lượng giác',
-                        'Phương trình lượng giác cơ bản',
-                        'Tổ hợp và xác suất',
-                        'Dãy số và cấp số',
-                        'Giới hạn của dãy số',
-                        'Giới hạn của hàm số'
-                    ],
-                    'intermediate': [
-                        'Đạo hàm và ứng dụng',
-                        'Khảo sát hàm số',
-                        'Tiếp tuyến của đồ thị',
-                        'Cực trị của hàm số',
-                        'Tích phân cơ bản',
-                        'Ứng dụng tích phân'
-                    ],
-                    'advanced': [
-                        'Phương trình lượng giác nâng cao',
-                        'Tổ hợp và xác suất nâng cao',
-                        'Dãy số và cấp số nâng cao',
-                        'Giới hạn nâng cao',
-                        'Đạo hàm nâng cao',
-                        'Tích phân nâng cao'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Khảo sát và vẽ đồ thị hàm số',
-                        'Tích phân và ứng dụng',
-                        'Số phức',
-                        'Hình học không gian',
-                        'Phương pháp tọa độ trong không gian',
-                        'Mặt cầu và mặt tròn xoay'
-                    ],
-                    'intermediate': [
-                        'Nguyên hàm và tích phân',
-                        'Ứng dụng tích phân trong hình học',
-                        'Số phức nâng cao',
-                        'Hình học không gian nâng cao',
-                        'Phương pháp tọa độ nâng cao',
-                        'Mặt cầu và mặt tròn xoay nâng cao'
-                    ],
-                    'advanced': [
-                        'Khảo sát hàm số nâng cao',
-                        'Tích phân nâng cao',
-                        'Số phức chuyên sâu',
-                        'Hình học không gian chuyên sâu',
-                        'Phương pháp tọa độ chuyên sâu',
-                        'Mặt cầu và mặt tròn xoay chuyên sâu'
-                    ]
-                }
-            },
-            'physics': {
-                '10': {
-                    'basic': [
-                        'Chuyển động cơ học',
-                        'Định luật Newton',
-                        'Các lực cơ học',
-                        'Công và công suất',
-                        'Năng lượng và định luật bảo toàn',
-                        'Chất khí'
-                    ],
-                    'intermediate': [
-                        'Chuyển động tròn đều',
-                        'Định luật bảo toàn động lượng',
-                        'Va chạm',
-                        'Cân bằng và chuyển động của vật rắn',
-                        'Chất lỏng',
-                        'Chất rắn và biến dạng'
-                    ],
-                    'advanced': [
-                        'Chuyển động phức tạp',
-                        'Định luật bảo toàn năng lượng',
-                        'Dao động cơ học',
-                        'Sóng cơ học',
-                        'Âm thanh',
-                        'Nhiệt động lực học'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Điện tích và điện trường',
-                        'Dòng điện không đổi',
-                        'Dòng điện trong các môi trường',
-                        'Từ trường',
-                        'Cảm ứng điện từ',
-                        'Khúc xạ ánh sáng'
-                    ],
-                    'intermediate': [
-                        'Điện thế và điện trường',
-                        'Dòng điện trong kim loại',
-                        'Dòng điện trong chất điện phân',
-                        'Lực từ và cảm ứng từ',
-                        'Hiện tượng cảm ứng điện từ',
-                        'Phản xạ và khúc xạ ánh sáng'
-                    ],
-                    'advanced': [
-                        'Điện trường nâng cao',
-                        'Dòng điện xoay chiều',
-                        'Dao động điện từ',
-                        'Sóng điện từ',
-                        'Giao thoa ánh sáng',
-                        'Lượng tử ánh sáng'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Dao động điện từ',
-                        'Sóng điện từ',
-                        'Sóng ánh sáng',
-                        'Lượng tử ánh sáng',
-                        'Hạt nhân nguyên tử',
-                        'Từ vi mô đến vĩ mô'
-                    ],
-                    'intermediate': [
-                        'Mạch dao động',
-                        'Sóng điện từ và thông tin liên lạc',
-                        'Giao thoa ánh sáng',
-                        'Hiện tượng quang điện',
-                        'Cấu tạo hạt nhân',
-                        'Phóng xạ'
-                    ],
-                    'advanced': [
-                        'Dao động điện từ nâng cao',
-                        'Sóng điện từ nâng cao',
-                        'Quang học lượng tử',
-                        'Vật lý hạt nhân',
-                        'Thuyết tương đối',
-                        'Vũ trụ học'
-                    ]
-                }
-            },
-            'chemistry': {
-                '10': {
-                    'basic': [
-                        'Cấu tạo nguyên tử',
-                        'Bảng tuần hoàn',
-                        'Liên kết hóa học',
-                        'Phản ứng oxi hóa khử',
-                        'Dung dịch',
-                        'Tốc độ phản ứng'
-                    ],
-                    'intermediate': [
-                        'Cấu hình electron',
-                        'Định luật tuần hoàn',
-                        'Liên kết ion và liên kết cộng hóa trị',
-                        'Cân bằng hóa học',
-                        'Dung dịch điện li',
-                        'Axit và bazơ'
-                    ],
-                    'advanced': [
-                        'Cấu trúc nguyên tử nâng cao',
-                        'Bảng tuần hoàn nâng cao',
-                        'Liên kết hóa học nâng cao',
-                        'Phản ứng oxi hóa khử nâng cao',
-                        'Dung dịch nâng cao',
-                        'Tốc độ phản ứng nâng cao'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Sự điện li',
-                        'Nitơ và hợp chất',
-                        'Cacbon và hợp chất',
-                        'Silic và hợp chất',
-                        'Đại cương về hóa học hữu cơ',
-                        'Hiđrocacbon no'
-                    ],
-                    'intermediate': [
-                        'Axit và bazơ',
-                        'Muối và pH',
-                        'Amoniac và muối amoni',
-                        'Axit nitric và muối nitrat',
-                        'Cacbon monoxit và cacbon đioxit',
-                        'Hiđrocacbon không no'
-                    ],
-                    'advanced': [
-                        'Sự điện li nâng cao',
-                        'Nitơ và hợp chất nâng cao',
-                        'Cacbon và hợp chất nâng cao',
-                        'Silic và hợp chất nâng cao',
-                        'Hiđrocacbon nâng cao',
-                        'Dẫn xuất halogen'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Ancol và phenol',
-                        'Anđehit và xeton',
-                        'Axit cacboxylic',
-                        'Este và lipit',
-                        'Cacbohiđrat',
-                        'Amin và amino axit'
-                    ],
-                    'intermediate': [
-                        'Ancol và phenol nâng cao',
-                        'Anđehit và xeton nâng cao',
-                        'Axit cacboxylic nâng cao',
-                        'Este và lipit nâng cao',
-                        'Cacbohiđrat nâng cao',
-                        'Protein và polime'
-                    ],
-                    'advanced': [
-                        'Hóa học hữu cơ chuyên sâu',
-                        'Hóa học vô cơ chuyên sâu',
-                        'Hóa học phân tích',
-                        'Hóa học môi trường',
-                        'Hóa học thực phẩm',
-                        'Hóa học dược phẩm'
-                    ]
-                }
-            }
-        }
-        
-        subject_topics = topics.get(subject.lower(), {}).get(grade, {}).get(level, [])
-        if not subject_topics:
-            return []
+        """Lấy danh sách chủ đề lý thuyết từ Excel"""
+        try:
+            print("\n[DEBUG] ====== Bắt đầu lấy chủ đề lý thuyết ======")
+            print(f"[DEBUG] Input parameters: subject={subject}, week={week_number}, level={level}, grade={grade}")
             
-        # Tính toán số chủ đề cho mỗi tuần
-        topics_per_week = len(subject_topics) // total_weeks
-        start_idx = (week_number - 1) * topics_per_week
-        end_idx = start_idx + topics_per_week
-        
-        # Trả về tất cả chủ đề của tuần đó
-        return subject_topics[start_idx:end_idx]
+            if 'theory' not in self.excel_data:
+                print("[ERROR] Không tìm thấy dữ liệu theory trong excel_data")
+                return []
+                
+            theory_df = self.excel_data['theory']
+            print(f"[DEBUG] Columns in theory.xlsx: {theory_df.columns.tolist()}")
+            
+            # Lấy ID_subject từ bảng subject
+            if 'subject' in self.excel_data:
+                subject_df = self.excel_data['subject']
+                print(f"[DEBUG] Columns in subject.xlsx: {subject_df.columns.tolist()}")
+                
+                # Chuyển đổi tên môn học thành định dạng phù hợp
+                subject_mapping = {
+                    'math': 'Toán học',
+                    'physics': 'Vật lý',
+                    'chemistry': 'Hóa học'
+                }
+                
+                subject_name = subject_mapping.get(subject.lower())
+                if not subject_name:
+                    print(f"[ERROR] Không tìm thấy tên môn học cho {subject}")
+                    return []
+                    
+                # Tìm ID_subject tương ứng
+                subject_row = subject_df[subject_df['name_subject'] == subject_name]
+                if subject_row.empty:
+                    print(f"[ERROR] Không tìm thấy môn học {subject} trong bảng subject")
+                    return []
+                    
+                subject_id = subject_row['ID_subject'].iloc[0]
+                print(f"[DEBUG] ID_subject cho {subject}: {subject_id}")
+                
+                # Lấy ID_grade từ bảng grade
+                if 'grade' in self.excel_data:
+                    grade_df = self.excel_data['grade']
+                    grade_row = grade_df[grade_df['name_grade'] == f'Lớp {grade}']
+                    if grade_row.empty:
+                        print(f"[ERROR] Không tìm thấy lớp {grade} trong bảng grade")
+                        return []
+                        
+                    grade_id = grade_row['ID_grade'].iloc[0]
+                    print(f"[DEBUG] ID_grade cho lớp {grade}: {grade_id}")
+                    
+                    # Lọc theo ID_subject và ID_grade
+                    filtered_theory = theory_df[
+                        (theory_df['ID_subject'] == subject_id) &
+                        (theory_df['ID_grade'] == grade_id)
+                    ]
+                    print(f"[DEBUG] Số lượng chủ đề tìm thấy: {len(filtered_theory)}")
+                else:
+                    print("[ERROR] Không tìm thấy bảng grade")
+                    return []
+            else:
+                print("[ERROR] Không tìm thấy bảng subject")
+                return []
+            
+            # Lọc theo cấp độ
+            filtered_theory = filtered_theory[filtered_theory['level'] == level]
+            print(f"[DEBUG] Số lượng chủ đề sau khi lọc theo level {level}: {len(filtered_theory)}")
+            
+            # Sắp xếp theo thứ tự ưu tiên nếu có cột priority
+            if 'priority' in filtered_theory.columns:
+                filtered_theory = filtered_theory.sort_values('priority')
+            
+            # Tính số chủ đề cần lấy dựa trên tuần học
+            topics_per_week = max(1, len(filtered_theory) // total_weeks)
+            start_idx = (week_number - 1) * topics_per_week
+            end_idx = start_idx + topics_per_week
+            
+            selected_topics = filtered_theory.iloc[start_idx:end_idx]
+            print(f"[DEBUG] Số lượng chủ đề được chọn: {len(selected_topics)}")
+            
+            # Chuyển đổi thành định dạng mong muốn
+            topics = []
+            for _, row in selected_topics.iterrows():
+                topic = {
+                    'name': row['theory_name'],
+                    'description': row.get('content', ''),
+                    'estimated_hours': float(row.get('estimated_time', 2.0))
+                }
+                topics.append(topic)
+            
+            print(f"[DEBUG] Số lượng chủ đề trả về: {len(topics)}")
+            print("[DEBUG] ====== Kết thúc lấy chủ đề lý thuyết ======\n")
+            return topics
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lấy chủ đề lý thuyết: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+            print("[DEBUG] ====== Kết thúc lấy chủ đề lý thuyết với lỗi ======\n")
+            return []
     
     def _get_practice_exercises(self, subject, week_number, total_weeks, level, grade):
-        """Lấy danh sách bài tập thực hành"""
-        resources = {
-            'math': {
-                '10': {
-                    'basic': [
-                        'Bài tập hàm số và đồ thị',
-                        'Bài tập phương trình bậc nhất',
-                        'Bài tập bất phương trình bậc nhất',
-                        'Bài tập hàm số bậc hai',
-                        'Bài tập phương trình bậc hai'
-                    ],
-                    'intermediate': [
-                        'Bài tập hàm số bậc ba',
-                        'Bài tập phương trình bậc ba',
-                        'Bài tập bất phương trình bậc hai',
-                        'Bài tập hệ phương trình',
-                        'Bài tập phương trình chứa căn'
-                    ],
-                    'advanced': [
-                        'Bài tập hàm số mũ và logarit',
-                        'Bài tập phương trình mũ và logarit',
-                        'Bài tập bất phương trình mũ và logarit',
-                        'Bài tập hệ phương trình mũ và logarit',
-                        'Bài tập phương trình lượng giác'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Bài tập hàm số lượng giác',
-                        'Bài tập phương trình lượng giác',
-                        'Bài tập tổ hợp và xác suất',
-                        'Bài tập dãy số và cấp số',
-                        'Bài tập giới hạn'
-                    ],
-                    'intermediate': [
-                        'Bài tập đạo hàm',
-                        'Bài tập khảo sát hàm số',
-                        'Bài tập tiếp tuyến',
-                        'Bài tập cực trị',
-                        'Bài tập tích phân'
-                    ],
-                    'advanced': [
-                        'Bài tập lượng giác nâng cao',
-                        'Bài tập tổ hợp nâng cao',
-                        'Bài tập dãy số nâng cao',
-                        'Bài tập giới hạn nâng cao',
-                        'Bài tập đạo hàm nâng cao'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Bài tập khảo sát hàm số',
-                        'Bài tập tích phân',
-                        'Bài tập số phức',
-                        'Bài tập hình học không gian',
-                        'Bài tập tọa độ không gian'
-                    ],
-                    'intermediate': [
-                        'Bài tập nguyên hàm',
-                        'Bài tập tích phân nâng cao',
-                        'Bài tập số phức nâng cao',
-                        'Bài tập hình học không gian nâng cao',
-                        'Bài tập tọa độ không gian nâng cao'
-                    ],
-                    'advanced': [
-                        'Bài tập khảo sát hàm số nâng cao',
-                        'Bài tập tích phân chuyên sâu',
-                        'Bài tập số phức chuyên sâu',
-                        'Bài tập hình học không gian chuyên sâu',
-                        'Bài tập tọa độ không gian chuyên sâu'
-                    ]
-                }
-            },
-            'physics': {
-                '10': {
-                    'basic': [
-                        'Bài tập chuyển động cơ học',
-                        'Bài tập định luật Newton',
-                        'Bài tập các lực cơ học',
-                        'Bài tập công và công suất',
-                        'Bài tập năng lượng'
-                    ],
-                    'intermediate': [
-                        'Bài tập chuyển động tròn',
-                        'Bài tập bảo toàn động lượng',
-                        'Bài tập va chạm',
-                        'Bài tập cân bằng vật rắn',
-                        'Bài tập chất lỏng'
-                    ],
-                    'advanced': [
-                        'Bài tập chuyển động phức tạp',
-                        'Bài tập bảo toàn năng lượng',
-                        'Bài tập dao động cơ',
-                        'Bài tập sóng cơ',
-                        'Bài tập nhiệt động lực học'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Bài tập điện trường',
-                        'Bài tập dòng điện không đổi',
-                        'Bài tập dòng điện trong môi trường',
-                        'Bài tập từ trường',
-                        'Bài tập cảm ứng điện từ'
-                    ],
-                    'intermediate': [
-                        'Bài tập điện thế',
-                        'Bài tập dòng điện kim loại',
-                        'Bài tập dòng điện điện phân',
-                        'Bài tập lực từ',
-                        'Bài tập cảm ứng từ'
-                    ],
-                    'advanced': [
-                        'Bài tập điện trường nâng cao',
-                        'Bài tập dòng điện xoay chiều',
-                        'Bài tập dao động điện từ',
-                        'Bài tập sóng điện từ',
-                        'Bài tập giao thoa ánh sáng'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Bài tập dao động điện từ',
-                        'Bài tập sóng điện từ',
-                        'Bài tập sóng ánh sáng',
-                        'Bài tập lượng tử ánh sáng',
-                        'Bài tập hạt nhân nguyên tử'
-                    ],
-                    'intermediate': [
-                        'Bài tập mạch dao động',
-                        'Bài tập sóng điện từ nâng cao',
-                        'Bài tập giao thoa ánh sáng',
-                        'Bài tập hiện tượng quang điện',
-                        'Bài tập phóng xạ'
-                    ],
-                    'advanced': [
-                        'Bài tập dao động điện từ nâng cao',
-                        'Bài tập sóng điện từ chuyên sâu',
-                        'Bài tập quang học lượng tử',
-                        'Bài tập vật lý hạt nhân',
-                        'Bài tập thuyết tương đối'
-                    ]
-                }
-            },
-            'chemistry': {
-                '10': {
-                    'basic': [
-                        'Bài tập cấu tạo nguyên tử',
-                        'Bài tập bảng tuần hoàn',
-                        'Bài tập liên kết hóa học',
-                        'Bài tập phản ứng oxi hóa khử',
-                        'Bài tập dung dịch'
-                    ],
-                    'intermediate': [
-                        'Bài tập cấu hình electron',
-                        'Bài tập định luật tuần hoàn',
-                        'Bài tập liên kết ion và cộng hóa trị',
-                        'Bài tập cân bằng hóa học',
-                        'Bài tập dung dịch điện li'
-                    ],
-                    'advanced': [
-                        'Bài tập cấu trúc nguyên tử nâng cao',
-                        'Bài tập bảng tuần hoàn nâng cao',
-                        'Bài tập liên kết hóa học nâng cao',
-                        'Bài tập phản ứng oxi hóa khử nâng cao',
-                        'Bài tập dung dịch nâng cao'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Bài tập sự điện li',
-                        'Bài tập nitơ và hợp chất',
-                        'Bài tập cacbon và hợp chất',
-                        'Bài tập silic và hợp chất',
-                        'Bài tập hiđrocacbon no'
-                    ],
-                    'intermediate': [
-                        'Bài tập axit và bazơ',
-                        'Bài tập muối và pH',
-                        'Bài tập amoniac và muối amoni',
-                        'Bài tập axit nitric',
-                        'Bài tập hiđrocacbon không no'
-                    ],
-                    'advanced': [
-                        'Bài tập sự điện li nâng cao',
-                        'Bài tập nitơ và hợp chất nâng cao',
-                        'Bài tập cacbon và hợp chất nâng cao',
-                        'Bài tập silic và hợp chất nâng cao',
-                        'Bài tập hiđrocacbon nâng cao'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Bài tập ancol và phenol',
-                        'Bài tập anđehit và xeton',
-                        'Bài tập axit cacboxylic',
-                        'Bài tập este và lipit',
-                        'Bài tập cacbohiđrat'
-                    ],
-                    'intermediate': [
-                        'Bài tập ancol và phenol nâng cao',
-                        'Bài tập anđehit và xeton nâng cao',
-                        'Bài tập axit cacboxylic nâng cao',
-                        'Bài tập este và lipit nâng cao',
-                        'Bài tập cacbohiđrat nâng cao'
-                    ],
-                    'advanced': [
-                        'Bài tập hóa học hữu cơ chuyên sâu',
-                        'Bài tập hóa học vô cơ chuyên sâu',
-                        'Bài tập hóa học phân tích',
-                        'Bài tập hóa học môi trường',
-                        'Bài tập hóa học thực phẩm'
-                    ]
-                }
-            }
-        }
-        
-        subject_exercises = resources.get(subject.lower(), {}).get(grade, {}).get(level, [])
-        if not subject_exercises:
-            return []
+        """Lấy danh sách bài tập từ Excel hoặc tạo mới nếu chưa có"""
+        try:
+            print("\n[DEBUG] ====== Bắt đầu lấy bài tập ======")
+            print(f"[DEBUG] Input parameters: subject={subject}, week={week_number}, level={level}, grade={grade}")
             
-        # Tính toán chỉ số bắt đầu dựa trên tuần và ngày
-        exercises_per_week = len(subject_exercises) // total_weeks
-        start_idx = (week_number - 1) * exercises_per_week
-        
-        # Trả về một bài tập duy nhất cho ngày hiện tại
-        if start_idx < len(subject_exercises):
-            return [subject_exercises[start_idx]]
-        return []
+            if 'practice' not in self.excel_data:
+                print("[DEBUG] Không tìm thấy dữ liệu practice trong excel_data")
+                return []
+                
+            practice_df = self.excel_data['practice']
+            print(f"[DEBUG] Columns in practice.xlsx: {practice_df.columns.tolist()}")
+            
+            # Lấy ID_subject từ bảng subject
+            if 'subject' in self.excel_data:
+                subject_df = self.excel_data['subject']
+                print(f"[DEBUG] Columns in subject.xlsx: {subject_df.columns.tolist()}")
+                print(f"[DEBUG] Subject data:\n{subject_df}")
+                
+                # Chuyển đổi tên môn học thành định dạng phù hợp
+                subject_mapping = {
+                    'math': 'Toán học',
+                    'physics': 'Vật lý',
+                    'chemistry': 'Hóa học'
+                }
+                
+                subject_name = subject_mapping.get(subject.lower())
+                if not subject_name:
+                    print(f"[ERROR] Không tìm thấy tên môn học cho {subject}")
+                    return []
+                    
+                print(f"[DEBUG] Tìm kiếm môn học: {subject_name}")
+                # Tìm ID_subject tương ứng
+                subject_row = subject_df[subject_df['name_subject'] == subject_name]
+                print(f"[DEBUG] Kết quả tìm kiếm:\n{subject_row}")
+                
+                if subject_row.empty:
+                    print(f"[ERROR] Không tìm thấy môn học {subject} trong bảng subject")
+                    return []
+                    
+                subject_id = subject_row['ID_subject'].iloc[0]
+                print(f"[DEBUG] ID_subject cho {subject}: {subject_id}")
+                
+                # Lọc theo ID_subject
+                filtered_practice = practice_df[practice_df['ID_subject'] == subject_id]
+                print(f"[DEBUG] Số lượng bài tập tìm thấy: {len(filtered_practice)}")
+                print(f"[DEBUG] Bài tập tìm thấy:\n{filtered_practice}")
+            else:
+                print("[ERROR] Không tìm thấy bảng subject")
+                return []
+            
+            # Lọc theo cấp độ
+            filtered_practice = filtered_practice[filtered_practice['level'] == level]
+            print(f"[DEBUG] Số lượng bài tập sau khi lọc theo level {level}: {len(filtered_practice)}")
+            
+            # Sắp xếp theo thứ tự ưu tiên nếu có cột priority
+            if 'priority' in filtered_practice.columns:
+                filtered_practice = filtered_practice.sort_values('priority')
+            
+            # Tính số bài tập cần lấy dựa trên tuần học
+            exercises_per_week = max(1, len(filtered_practice) // total_weeks)
+            start_idx = (week_number - 1) * exercises_per_week
+            end_idx = start_idx + exercises_per_week
+            
+            selected_exercises = filtered_practice.iloc[start_idx:end_idx]
+            print(f"[DEBUG] Số lượng bài tập được chọn: {len(selected_exercises)}")
+            
+            # Chuyển đổi thành định dạng mong muốn
+            exercises = []
+            for _, row in selected_exercises.iterrows():
+                exercise = {
+                    'name': row['practice_name'],
+                    'description': row.get('description', ''),
+                    'difficulty': row.get('difficulty', 'medium')
+                }
+                exercises.append(exercise)
+            
+            print(f"[DEBUG] Số lượng bài tập trả về: {len(exercises)}")
+            print("[DEBUG] ====== Kết thúc lấy bài tập ======\n")
+            return exercises
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lấy bài tập: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+            print("[DEBUG] ====== Kết thúc lấy bài tập với lỗi ======\n")
+            return []
 
     def create_flexible_schedule(self, subject, current_score, target_score, 
                                available_hours, learning_style, grade, preferred_times=None):
@@ -1386,6 +1145,12 @@ class LearningPathAI:
         try:
             print("\n[DEBUG] ====== Bắt đầu mã hóa dữ liệu phân loại ======")
             print("[DEBUG] Input DataFrame:", df)
+            
+            # Kiểm tra DataFrame rỗng
+            if df.empty:
+                print("[ERROR] Input DataFrame is empty")
+                return None
+                
             print("[DEBUG] DataFrame info:")
             print(df.info())
             print("\n[DEBUG] DataFrame description:")
@@ -1397,8 +1162,12 @@ class LearningPathAI:
             # Chuyển đổi grade thành integer
             if 'grade' in encoded_df.columns:
                 print("[DEBUG] Converting grade to integer")
-                encoded_df['grade'] = encoded_df['grade'].astype(int)
-                print(f"[DEBUG] Converted grade values: {encoded_df['grade'].values}")
+                try:
+                    encoded_df['grade'] = encoded_df['grade'].astype(int)
+                    print(f"[DEBUG] Converted grade values: {encoded_df['grade'].values}")
+                except Exception as e:
+                    print(f"[ERROR] Error converting grade to integer: {e}")
+                    return None
             
             # Kiểm tra các biến phân loại
             categorical_columns = ['subject', 'grade', 'learning_style']
@@ -1412,10 +1181,15 @@ class LearningPathAI:
             # Đọc dữ liệu training để fit encoder
             try:
                 training_data = pd.read_csv('training_data.csv')
+                if training_data.empty:
+                    print("[ERROR] Training data is empty")
+                    return None
+                    
                 # Chuyển đổi grade trong training data thành integer
                 if 'grade' in training_data.columns:
                     training_data['grade'] = training_data['grade'].astype(int)
                 print("[DEBUG] Successfully loaded training data")
+                print(f"[DEBUG] Training data shape: {training_data.shape}")
             except Exception as e:
                 print(f"[ERROR] Error loading training data: {e}")
                 return None
@@ -1457,210 +1231,103 @@ class LearningPathAI:
             print("\n[DEBUG] Final DataFrame info:")
             print(encoded_df.info())
             print("\n[DEBUG] ====== Kết thúc mã hóa dữ liệu phân loại ======\n")
+            
+            # Kiểm tra DataFrame sau khi mã hóa
+            if encoded_df.empty:
+                print("[ERROR] Encoded DataFrame is empty")
+                return None
+                
             return encoded_df
             
         except Exception as e:
             print("\n[ERROR] Exception in _encode_categorical_features:")
             print(f"[ERROR] Error type: {type(e).__name__}")
             print(f"[ERROR] Error message: {str(e)}")
-            import traceback
             print("[ERROR] Stack trace:")
             traceback.print_exc()
             print("[DEBUG] ====== Kết thúc mã hóa dữ liệu phân loại với lỗi ======\n")
             return None
 
-    def _get_learning_resources(self, subject, level, grade):
-        """Lấy danh sách tài liệu học tập phù hợp"""
-        resources = {
-            'math': {
-                '10': {
-                    'basic': [
-                        'Sách giáo khoa Toán 10',
-                        'Video bài giảng cơ bản Toán 10',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Toán 10',
-                        'Video bài giảng nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Toán 10',
-                        'Video bài giảng chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Sách giáo khoa Toán 11',
-                        'Video bài giảng cơ bản Toán 11',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Toán 11',
-                        'Video bài giảng nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Toán 11',
-                        'Video bài giảng chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Sách giáo khoa Toán 12',
-                        'Video bài giảng cơ bản Toán 12',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Toán 12',
-                        'Video bài giảng nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Toán 12',
-                        'Video bài giảng chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
+    def _get_learning_resources(self, subject, grade, level):
+        """Lấy tài liệu học tập từ Excel"""
+        try:
+            print("\n[DEBUG] ====== Bắt đầu lấy tài liệu học tập ======")
+            print(f"[DEBUG] Input parameters: subject={subject}, grade={grade}, level={level}")
+            
+            if 'topic' not in self.excel_data:
+                print("[ERROR] Không tìm thấy dữ liệu topic trong excel_data")
+                return []
+                
+            topic_df = self.excel_data['topic']
+            print(f"[DEBUG] Columns in topic.xlsx: {topic_df.columns.tolist()}")
+            
+            # Lấy ID_subject từ bảng subject
+            if 'subject' in self.excel_data:
+                subject_df = self.excel_data['subject']
+                print(f"[DEBUG] Columns in subject.xlsx: {subject_df.columns.tolist()}")
+                
+                # Chuyển đổi tên môn học thành định dạng phù hợp
+                subject_mapping = {
+                    'math': 'Toán học',
+                    'physics': 'Vật lý',
+                    'chemistry': 'Hóa học'
                 }
-            },
-            'physics': {
-                '10': {
-                    'basic': [
-                        'Sách giáo khoa Vật lý 10',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Vật lý 10',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Vật lý 10',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Sách giáo khoa Vật lý 11',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Vật lý 11',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Vật lý 11',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Sách giáo khoa Vật lý 12',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Vật lý 12',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Vật lý 12',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
+                
+                subject_name = subject_mapping.get(subject.lower())
+                if not subject_name:
+                    print(f"[ERROR] Không tìm thấy tên môn học cho {subject}")
+                    return []
+                    
+                # Tìm ID_subject tương ứng
+                subject_row = subject_df[subject_df['name_subject'] == subject_name]
+                if subject_row.empty:
+                    print(f"[ERROR] Không tìm thấy môn học {subject} trong bảng subject")
+                    return []
+                    
+                subject_id = subject_row['ID_subject'].iloc[0]
+                print(f"[DEBUG] ID_subject cho {subject}: {subject_id}")
+                
+                # Lọc theo ID_subject
+                filtered_resources = topic_df[topic_df['ID_subject'] == subject_id]
+                print(f"[DEBUG] Số lượng tài liệu tìm thấy: {len(filtered_resources)}")
+            else:
+                print("[ERROR] Không tìm thấy bảng subject")
+                return []
+            
+            # Lọc theo cấp độ
+            filtered_resources = filtered_resources[filtered_resources['level'] == level]
+            
+            # Sắp xếp theo thứ tự ưu tiên nếu có cột priority
+            if 'priority' in topic_df.columns:
+                filtered_resources = filtered_resources.sort_values('priority')
+            
+            # Chuyển đổi thành định dạng mong muốn
+            resources = []
+            for _, row in filtered_resources.iterrows():
+                resource = {
+                    'name': row['topic_name'],
+                    'type': 'document',
+                    'url': '',
+                    'description': f'Tài liệu học tập {subject} cho học sinh lớp {grade}'
                 }
-            },
-            'chemistry': {
-                '10': {
-                    'basic': [
-                        'Sách giáo khoa Hóa học 10',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Hóa học 10',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Hóa học 10',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '11': {
-                    'basic': [
-                        'Sách giáo khoa Hóa học 11',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Hóa học 11',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Hóa học 11',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                },
-                '12': {
-                    'basic': [
-                        'Sách giáo khoa Hóa học 12',
-                        'Video thí nghiệm cơ bản',
-                        'Bài tập trắc nghiệm cơ bản',
-                        'Tài liệu ôn tập cơ bản'
-                    ],
-                    'intermediate': [
-                        'Sách nâng cao Hóa học 12',
-                        'Video thí nghiệm nâng cao',
-                        'Bài tập tự luận',
-                        'Đề thi thử'
-                    ],
-                    'advanced': [
-                        'Sách chuyên sâu Hóa học 12',
-                        'Video thí nghiệm chuyên sâu',
-                        'Bài tập Olympic',
-                        'Tài liệu nghiên cứu'
-                    ]
-                }
-            }
-        }
-        
-        return resources.get(subject.lower(), {}).get(grade, {}).get(level, [])
+                resources.append(resource)
+            
+            print(f"[DEBUG] Số lượng tài liệu trả về: {len(resources)}")
+            print("[DEBUG] ====== Kết thúc lấy tài liệu học tập ======\n")
+            return resources
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lấy tài liệu học tập: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+            print("[DEBUG] ====== Kết thúc lấy tài liệu học tập với lỗi ======\n")
+            # Trả về tài liệu mặc định trong trường hợp lỗi
+            return [{
+                'name': f'Tài liệu {subject} lớp {grade}',
+                'type': 'document',
+                'url': '',
+                'description': f'Tài liệu học tập {subject} cho học sinh lớp {grade}'
+            }]
 
     def estimate_total_time(self, subject, grade, level):
         """Ước tính tổng thời gian cần thiết cho toàn bộ lộ trình học tập"""
@@ -1751,7 +1418,7 @@ class LearningPathAI:
         }
         
         # Tính tổng thời gian lý thuyết
-        total_theory_time = sum(topic_time_estimates.get(subject, {}).get(grade, {}).get(topic, 2.0) for topic in all_topics)
+        total_theory_time = sum(topic_time_estimates.get(subject, {}).get(grade, {}).get(topic['name'], 2.0) for topic in all_topics)
         
         # Ước tính thời gian thực hành (thường bằng 1.5 lần thời gian lý thuyết)
         total_practice_time = total_theory_time * 1.5
@@ -2034,6 +1701,108 @@ class LearningPathAI:
             
         return result
 
+    def generate_exercises(self, topic_name, subject, grade, level):
+        """Tạo bài tập tự động cho một chủ đề lý thuyết"""
+        try:
+            print(f"\n[DEBUG] Tạo bài tập cho chủ đề: {topic_name}")
+            
+            # Tạo các bài tập dựa trên chủ đề
+            exercises = []
+            
+            # Tạo 3-5 bài tập cho mỗi chủ đề
+            num_exercises = np.random.randint(3, 6)
+            
+            for i in range(num_exercises):
+                exercise = {
+                    'exercise_name': f'Bài tập {i+1} - {topic_name}',
+                    'description': self._generate_exercise_description(topic_name, subject, grade, level),
+                    'difficulty': level,
+                    'subject': subject,
+                    'grade': grade,
+                    'topic': topic_name,
+                    'priority': i + 1
+                }
+                exercises.append(exercise)
+            
+            return exercises
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi tạo bài tập: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+            return []
+
+    def _generate_exercise_description(self, topic_name, subject, grade, level):
+        """Tạo mô tả bài tập dựa trên chủ đề và cấp độ"""
+        try:
+            # Tạo các loại bài tập khác nhau dựa trên môn học
+            if subject == 'math':
+                exercise_types = [
+                    f"Giải bài toán về {topic_name}",
+                    f"Chứng minh tính chất của {topic_name}",
+                    f"Ứng dụng {topic_name} vào bài toán thực tế",
+                    f"Phân tích và giải thích {topic_name}",
+                    f"Tìm giá trị của biểu thức liên quan đến {topic_name}"
+                ]
+            elif subject == 'physics':
+                exercise_types = [
+                    f"Giải bài toán về {topic_name}",
+                    f"Phân tích hiện tượng {topic_name}",
+                    f"Tính toán các đại lượng trong {topic_name}",
+                    f"Vẽ đồ thị biểu diễn {topic_name}",
+                    f"Giải thích nguyên lý {topic_name}"
+                ]
+            else:  # chemistry
+                exercise_types = [
+                    f"Viết phương trình phản ứng {topic_name}",
+                    f"Tính toán nồng độ trong {topic_name}",
+                    f"Phân tích cấu trúc {topic_name}",
+                    f"Giải thích hiện tượng {topic_name}",
+                    f"Ứng dụng {topic_name} trong thực tế"
+                ]
+            
+            # Chọn ngẫu nhiên một loại bài tập
+            exercise_type = np.random.choice(exercise_types)
+            
+            # Thêm độ khó vào mô tả
+            difficulty_desc = {
+                'basic': 'cơ bản',
+                'intermediate': 'trung bình',
+                'advanced': 'nâng cao',
+                'expert': 'chuyên sâu'
+            }
+            
+            return f"{exercise_type} ({difficulty_desc.get(level, 'cơ bản')})"
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi tạo mô tả bài tập: {str(e)}")
+            return "Bài tập về " + topic_name
+
+    def _save_exercises_to_excel(self, exercises):
+        """Lưu bài tập vào file Excel"""
+        try:
+            # Đọc file Excel hiện tại nếu có
+            try:
+                practice_df = pd.read_excel('practice.xlsx')
+            except:
+                practice_df = pd.DataFrame(columns=[
+                    'exercise_name', 'description', 'difficulty',
+                    'subject', 'grade', 'topic', 'priority'
+                ])
+            
+            # Thêm bài tập mới
+            new_exercises_df = pd.DataFrame(exercises)
+            practice_df = pd.concat([practice_df, new_exercises_df], ignore_index=True)
+            
+            # Lưu lại vào file Excel
+            practice_df.to_excel('practice.xlsx', index=False)
+            print("[DEBUG] Đã lưu bài tập vào file Excel")
+            
+        except Exception as e:
+            print(f"[ERROR] Lỗi khi lưu bài tập vào Excel: {str(e)}")
+            print("[ERROR] Stack trace:")
+            traceback.print_exc()
+
 def main():
     # Khởi tạo AI
     ai = LearningPathAI()
@@ -2056,12 +1825,12 @@ def main():
     
     if learning_path:
         # In kết quả
-        for week in learning_path:
+        for week in learning_path['weekly_plans']:
             print(f"\nTuần {week['week_number']} ({week['start_date']} - {week['end_date']}):")
             print(f"Cấp độ: {week['level']}")
             print(f"Lớp: {week['grade']}")
             print(f"Tỷ lệ thành công dự đoán: {week['predicted_success_rate']}%")
-            for day, plan in enumerate(week['daily_plans'], 1):
+            for day, plan in enumerate(week['daily_schedule'], 1):
                 print(f"\nNgày {day}:")
                 print(f"Lý thuyết ({plan['theory_hours']} giờ):")
                 for topic in plan['theory_topics']:

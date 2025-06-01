@@ -502,8 +502,8 @@ def generate_study_plan():
         print("[DEBUG] Learning path generated successfully")
         print("[DEBUG] Learning path structure:", {
             'type': type(learning_path).__name__,
-            'length': len(learning_path),
-            'first_week': type(learning_path[0]).__name__ if learning_path else None
+            'weekly_plans_count': len(learning_path['weekly_plans']) if learning_path else 0,
+            'first_week': type(learning_path['weekly_plans'][0]).__name__ if learning_path and learning_path['weekly_plans'] else None
         })
         
         return jsonify({
